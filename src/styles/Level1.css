@@ -1,0 +1,428 @@
+/* ========================
+   DASHBOARD STYLES
+   ======================== */
+
+/* Page Title */
+.h2ing {
+  margin: 0 0 24px;
+  font-size: 28px;
+  font-weight: 700;
+  color: #222;
+  text-align: center;
+  letter-spacing: 0.5px;
+}
+
+/* Dashboard Container */
+.dashboard-container {
+  background: #f8fafc;
+  border-radius: 16px;
+  /* padding: 25px; */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+  margin: 0 auto;
+  max-width: 1200px;
+}
+
+/* ========================
+   GRID & CARD DESIGN
+   ======================== */
+
+/* Grid Layout */
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+  /* padding: 10px; */
+}
+
+/* Card Container */
+.chart-card {
+  /* background: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%); */
+  border-radius: 14px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.06);
+  padding: 22px 20px;
+  transition: all 0.25s ease;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Optional accent strip at the top */
+.chart-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 5px;
+  border-radius: 14px 14px 0 0;
+  background: linear-gradient(90deg, #007bff, #00b4d8);
+}
+
+/* Hover effect for subtle elevation */
+.chart-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.1);
+  border-color: #cbd5e1;
+}
+
+/* Title Header - Clickable area for summary */
+.chart-title-header {
+  width: 100%;
+  cursor: pointer;
+  padding: 8px 0;
+  margin-bottom: 12px;
+  border-radius: 8px;
+  transition: background-color 0.2s ease;
+}
+
+.chart-title-header:hover {
+  background-color: rgba(0, 123, 255, 0.05);
+}
+
+.chart-heading {
+  font-weight: 600;
+  color: #2a2a2a;
+  font-size: 18px;
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+/* Chart Content - Non-clickable container */
+.chart-content {
+  width: 100%;
+  /* display: flex; */
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chart-sub {
+  font-size: 13px;
+  color: #777;
+}
+
+/* ========================
+   TRACKER BUTTONS / DIVS
+   ======================== */
+
+.tracker-div,
+.tracker-button,
+.tracker-btn {
+  display: inline-block;
+  font-size: 15px;
+  font-weight: 500;
+  border-radius: 8px;
+  padding: 10px 18px;
+  margin-top: 10px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  user-select: none;
+  width: 100%;
+}
+
+/* Neutral Button */
+.tracker-div,
+.tracker-button {
+  background-color: #ffffff;
+  color: #333;
+  border: 1px solid #ddd;
+}
+
+.tracker-div:hover,
+.tracker-button:hover {
+  background-color: #f1f3f5;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+}
+
+/* Primary Action Button */
+.tracker-btn {
+  background-color: #007bff;
+  color: #fff;
+  border: 1px solid #007bff;
+}
+
+.tracker-btn:hover {
+  background-color: #005fcc;
+  border-color: #005fcc;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.25);
+}
+
+/* ========================
+   DETAIL VIEW SECTION
+   ======================== */
+
+.detail-view {
+  display: flex;
+  width: 100%;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-top: 25px;
+}
+
+/* Detail Card */
+.detail-card {
+  flex: 1;
+  min-width: 280px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+  padding: 20px;
+  transition: all 0.25s ease;
+}
+
+.detail-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.08);
+}
+
+.detail-card h4 {
+  margin: 0 0 10px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #222;
+}
+
+.detail-card p {
+  margin: 6px 0;
+  color: #555;
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+/* ========================
+   PLACEHOLDER TEXT
+   ======================== */
+
+.placeholder-text {
+  margin: 20px;
+  font-size: 17px;
+  color: #888;
+  font-style: italic;
+  text-align: center;
+  padding: 30px 0;
+  border: 2px dashed #ccc;
+  border-radius: 10px;
+  background-color: #fafafa;
+  width: 100%;
+}
+
+/* ========================
+   SUMMARY GRID STYLES
+   ======================== */
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  max-width: 500px;
+  margin: 0 auto;
+  background-color: #f7f9fc;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.summary-label {
+  font-size: 11px;
+  text-align: center;
+  font-weight: 500;
+}
+
+.summary-value {
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+  margin: 0 0 4px 0;
+}
+
+.summary-item {
+  padding: 8px 4px;
+  border-radius: 5px;
+  transition: all 0.25s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-left: 2px solid #e0e0e0;
+  background-color: #fafafa;
+}
+
+.summary-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Color variables for different labels */
+:root {
+  --important-color: #ffa726;
+  --critical-color: #ef5350;
+  --due-this-week-color: #42a5f5;
+  --due-this-month-color: #66bb6a;
+  --pending-color: #ab47bc;
+}
+
+/* Color coding based on labels */
+.summary-item[data-label="Important"] {
+  border-left-color: var(--important-color);
+}
+
+.summary-item[data-label="Critical"] {
+  border-left-color: var(--critical-color);
+}
+
+.summary-item[data-label="Due This Week"],
+.summary-item[data-label="Due this Week"] {
+  border-left-color: var(--due-this-week-color);
+}
+
+.summary-item[data-label="Due this month"] {
+  border-left-color: var(--due-this-month-color);
+}
+
+.summary-item[data-label="Pending"] {
+  border-left-color: var(--pending-color);
+}
+
+/* Activated state - full item colored */
+.summary-item.activatedclass {
+  border-left-width: 4px;
+  border-left-style: solid;
+  background-color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.summary-item.activatedclass[data-label="Important"] {
+  border-left-color: var(--important-color);
+  background-color: rgba(255, 168, 38, 0.15);
+}
+
+.summary-item.activatedclass[data-label="Critical"] {
+  border-left-color: var(--critical-color);
+  background-color: rgba(239, 83, 80, 0.1);
+}
+
+.summary-item.activatedclass[data-label="Due This Week"],
+.summary-item.activatedclass[data-label="Due this Week"] {
+  border-left-color: var(--due-this-week-color);
+  background-color: rgba(66, 165, 245, 0.1);
+}
+
+.summary-item.activatedclass[data-label="Due this month"] {
+  border-left-color: var(--due-this-month-color);
+  background-color: rgba(102, 187, 106, 0.1);
+}
+
+.summary-item.activatedclass[data-label="Pending"] {
+  border-left-color: var(--pending-color);
+  background-color: rgba(171, 71, 188, 0.1);
+}
+
+/* Hover effects */
+.summary-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.summary-item[data-label="Important"]:hover {
+  background-color: rgba(255, 167, 38, 0.08);
+}
+
+.summary-item[data-label="Critical"]:hover {
+  background-color: rgba(239, 83, 80, 0.08);
+}
+
+.summary-item[data-label="Due This Week"]:hover,
+.summary-item[data-label="Due this Week"]:hover {
+  background-color: rgba(66, 165, 245, 0.08);
+}
+
+.summary-item[data-label="Due this month"]:hover {
+  background-color: rgba(102, 187, 106, 0.08);
+}
+
+.summary-item[data-label="Pending"]:hover {
+  background-color: rgba(171, 71, 188, 0.08);
+}
+
+/* ========================
+   RESPONSIVE DESIGN
+   ======================== */
+@media (max-width: 768px) {
+  .chart-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-card {
+    padding: 16px;
+  }
+
+  .tracker-div,
+  .tracker-btn,
+  .tracker-button {
+    width: 100%;
+  }
+
+  .detail-card {
+    margin: 10px 0;
+  }
+
+  .summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    padding: 8px;
+  }
+}
+
+/* Mobile summary styles */
+.mobile-summary {
+  margin-top: 16px;
+  width: 100%;
+  /* background-color: #005fcc; */
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-summary-header {
+  /* background-color: #005fcc; */
+  /* width: 100%; */
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.summary-title {
+  font-weight: 600;
+  color: #2a2a2a;
+  font-size: 16px;
+  width: 100%;
+  flex: 1;
+}
+
+.collapse-btn {
+  width: 40px;
+  /* background-color: green; */
+  /* background: none; */
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #6b7280;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #005fcc31;
+}
+
+.collapse-btn:hover {
+  color: #374151;
+  background-color: #f3f4f6;
+  border-radius: 4px;
+}
