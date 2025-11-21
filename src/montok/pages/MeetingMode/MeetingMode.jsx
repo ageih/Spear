@@ -41,6 +41,7 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
   const [expandedMeeting, setExpandedMeeting] = useState(null);
   const [actionText, setActionText] = useState("");
   const [actionDeadline, setActionDeadline] = useState("");
+  const [actionAssignedTo, setActionAssignedTo] = useState("");
   const [savedActions, setSavedActions] = useState([]);
   const [recycleBin, setRecycleBin] = useState(false);
   const [deleted, setDeleted] = useState([]);
@@ -49,14 +50,21 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
   const [filteredDeleted, setFilteredDeleted] = useState([]);
   const [openHistoryId, setOpenHistoryId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Loading states for different operations
+  const [loading, setLoading] = useState({
+    save: false,
+    delete: null, // stores the meeting ID being deleted
+    statusUpdate: null, // stores the meeting ID being updated
+    actionStatusUpdate: null, // stores the action ID being updated
+  });
+
   const [toast, setToast] = useState(null);
 
   const [meetingForm, setMeetingForm] = useState({
     date: new Date().toISOString().split("T")[0],
-    agenda: "",
     mode: "In-person",
     decisions: "",
-    assigned_to: "",
     assigned_by: "",
     status: "Pending",
   });
@@ -244,11 +252,8 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                 .toISOString()
                 .split("T")[0]
             : new Date().toISOString().split("T")[0],
-          agenda: serverMeeting.ajenda || "",
           mode: "In-person",
           decisions: serverMeeting.action || "",
-          assigned_to: serverMeeting.assigned_to || "",
-          assigned_to_name: getUserNameById(serverMeeting.assigned_to),
           assigned_by: serverMeeting.assigned_by || "",
           status: status,
           actions: serverMeeting.actions
@@ -261,6 +266,8 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                       .split("T")[0]
                   : "",
                 status: serverAction.action_status || "Pending",
+                assigned_to: serverAction.assigned_to || "",
+                assigned_to_name: getUserNameById(serverAction.assigned_to),
               }))
             : [],
         };
@@ -299,11 +306,8 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                 .toISOString()
                 .split("T")[0]
             : new Date().toISOString().split("T")[0],
-          agenda: serverMeeting.ajenda || "",
           mode: "In-person",
           decisions: serverMeeting.action || "",
-          assigned_to: serverMeeting.assigned_to || "",
-          assigned_to_name: getUserNameById(serverMeeting.assigned_to),
           assigned_by: serverMeeting.assigned_by || "",
           status: status,
           actions: serverMeeting.actions
@@ -316,6 +320,8 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                       .split("T")[0]
                   : "",
                 status: serverAction.action_status || "Pending",
+                assigned_to: serverAction.assigned_to || "",
+                assigned_to_name: getUserNameById(serverAction.assigned_to),
               }))
             : [],
         };
@@ -372,7 +378,9 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
 
     return (
       userData.user.user_id === meeting.assigned_by ||
-      userData.user.user_id === meeting.assigned_to
+      meeting.actions?.some(
+        (action) => userData.user.user_id === action.assigned_to
+      )
     );
   };
 
@@ -421,13 +429,12 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
         meetingStatus.toLowerCase().includes(lowerFilter) ||
         meeting.dept?.toLowerCase().includes(lowerFilter) ||
         meeting.subject?.toLowerCase().includes(lowerFilter) ||
-        meeting.agenda?.toLowerCase().includes(lowerFilter) ||
         meeting.decisions?.toLowerCase().includes(lowerFilter) ||
-        meeting.assigned_to_name?.toLowerCase().includes(lowerFilter) ||
         meeting.actions?.some(
           (action) =>
             action.text?.toLowerCase().includes(lowerFilter) ||
-            action.status?.toLowerCase().includes(lowerFilter)
+            action.status?.toLowerCase().includes(lowerFilter) ||
+            action.assigned_to_name?.toLowerCase().includes(lowerFilter)
         )
       );
     });
@@ -470,16 +477,15 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
 
     setMeetingForm({
       date: new Date().toISOString().split("T")[0],
-      agenda: "",
       mode: "In-person",
       decisions: "",
-      assigned_to: "",
       assigned_by: userData?.user?.user_id,
       status: "Pending",
     });
 
     setActionText("");
     setActionDeadline("");
+    setActionAssignedTo("");
     setSavedActions([]);
     setShowMeetingArea(true);
   };
@@ -493,6 +499,8 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
     const newAction = {
       text: actionText.trim(),
       deadline: actionDeadline,
+      assigned_to: actionAssignedTo,
+      assigned_to_name: getUserNameById(actionAssignedTo),
       status: "Pending",
       id: Date.now() + Math.random(),
     };
@@ -500,27 +508,23 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
     setSavedActions([...savedActions, newAction]);
     setActionText("");
     setActionDeadline("");
+    setActionAssignedTo("");
   };
 
   const saveMeeting = async () => {
     if (!currentSession) return;
 
-    if (!meetingForm.assigned_to) {
-      alert("Please assign to a user");
-      return;
-    }
+    // Set loading state
+    setLoading((prev) => ({ ...prev, save: true }));
 
     const newMeeting = {
       id: Date.now().toString(),
       dept: currentSession.dept,
       subject: currentSession.subject,
       date: meetingForm.date,
-      agenda: meetingForm.agenda.trim(),
       mode: meetingForm.mode,
       decisions: meetingForm.decisions.trim(),
-      assigned_to: meetingForm.assigned_to,
       assigned_by: userData?.user?.user_id,
-      assigned_to_name: getUserNameById(meetingForm.assigned_to),
       status: meetingForm.status,
       actions: savedActions,
     };
@@ -530,9 +534,7 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
         department: newMeeting.dept,
         subject: newMeeting.subject,
         action_deadline: newMeeting.date,
-        ajenda: newMeeting.agenda,
         action: newMeeting.decisions,
-        assigned_to: newMeeting.assigned_to,
         assigned_by: userData?.user?.user_id,
         user_id: userData?.user?.user_id,
         status: newMeeting.status,
@@ -540,6 +542,7 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
           action: action.text,
           action_deadline: action.deadline,
           action_status: action.status,
+          assigned_to: action.assigned_to,
         })),
       };
 
@@ -575,6 +578,7 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
       setCurrentSession(null);
       setActionText("");
       setActionDeadline("");
+      setActionAssignedTo("");
       setSavedActions([]);
       setExpandedMeeting(null);
       setSelectedSubject("");
@@ -590,6 +594,9 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
         }`,
         type: "error",
       });
+    } finally {
+      // Reset loading state
+      setLoading((prev) => ({ ...prev, save: false }));
     }
   };
 
@@ -603,6 +610,9 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
         }`
       )
     ) {
+      // Set loading state for this specific meeting
+      setLoading((prev) => ({ ...prev, delete: id }));
+
       try {
         const meetingToDelete = meetings.find((meeting) => meeting.id === id);
         const permanent = recycleBin ? true : false;
@@ -644,6 +654,9 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
           message: `${error.errorMessage || "Internal Server Error"}`,
           type: "error",
         });
+      } finally {
+        // Reset loading state
+        setLoading((prev) => ({ ...prev, delete: null }));
       }
     }
   };
@@ -653,6 +666,7 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
     setCurrentSession(null);
     setActionText("");
     setActionDeadline("");
+    setActionAssignedTo("");
     setSavedActions([]);
   };
 
@@ -662,6 +676,9 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
 
   // Function to update meeting status
   const updateMeetingStatus = async (meetingId, newStatus) => {
+    // Set loading state for this specific meeting
+    setLoading((prev) => ({ ...prev, statusUpdate: meetingId }));
+
     try {
       console.log(`📡 Updating meeting ${meetingId} status to:`, newStatus);
 
@@ -688,11 +705,17 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
         }`,
         type: "error",
       });
+    } finally {
+      // Reset loading state
+      setLoading((prev) => ({ ...prev, statusUpdate: null }));
     }
   };
 
   // Function to update action status
   const updateActionStatus = async (meetingId, actionId, newStatus) => {
+    // Set loading state for this specific action
+    setLoading((prev) => ({ ...prev, actionStatusUpdate: actionId }));
+
     try {
       // Update locally - this will trigger the useEffect that updates summary counts
       const updatedMeetings = meetings.map((meeting) => {
@@ -706,8 +729,23 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
       });
 
       setMeetings(updatedMeetings);
+
+      // Also update on server if needed
+      await axios.put(
+        `${gapi}/meeting_actions?actions_id=${actionId}&user_id=${userData?.user?.user_id}`,
+        { action_status: newStatus }
+      );
     } catch (error) {
       console.error("Error updating action status:", error);
+      setToast({
+        message: `Error updating action status: ${
+          error.response?.data?.errorMessage || "Internal Server Error"
+        }`,
+        type: "error",
+      });
+    } finally {
+      // Reset loading state
+      setLoading((prev) => ({ ...prev, actionStatusUpdate: null }));
     }
   };
 
@@ -769,25 +807,17 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
             {meeting.status}
           </span>
         </div>
+
         <div className="meeting-mobile-field">
-          <label>Agenda:</label>
-          <span className="meeting-mobile-agenda">{meeting.agenda || "-"}</span>
-        </div>
-        <div className="meeting-mobile-field">
-          <label>Assigned To:</label>
+          <label>Assigned By:</label>
           <span className="meeting-mobile-assigned">
-            {meeting.assigned_to_name}
+            {getUserNameById(meeting.assigned_by)}
           </span>
         </div>
       </div>
 
       {expandedMeeting === meeting.id && (
         <div className="meeting-mobile-card-details">
-          <div className="meeting-mobile-field">
-            <label>Assigned By:</label>
-            <span>{getUserNameById(meeting.assigned_by)}</span>
-          </div>
-
           <div className="meeting-mobile-field">
             <label>Major Decisions:</label>
             <div className="meeting-mobile-decisions">
@@ -813,6 +843,9 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                       <span className="meeting-mobile-action-deadline">
                         {action.deadline || "No deadline"}
                       </span>
+                      <span className="meeting-mobile-action-assigned">
+                        {action.assigned_to_name || "Unassigned"}
+                      </span>
                       <span
                         className={`meeting-mobile-action-status meeting-mobile-action-status-${action.status
                           .toLowerCase()
@@ -830,25 +863,6 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
               </div>
             )}
           </div>
-
-          {/* {canUserEditMeeting(meeting) && !isDeleted && (
-            <div className="meeting-mobile-field">
-              <label>Update Status:</label>
-              <select
-                value={meeting.status}
-                onChange={(e) =>
-                  updateMeetingStatus(meeting.id, e.target.value)
-                }
-                className="meeting-select meeting-select-small"
-              >
-                {statusOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )} */}
         </div>
       )}
 
@@ -875,8 +889,9 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
               e.stopPropagation();
               deleteMeeting(meeting.id);
             }}
+            disabled={loading.delete === meeting.id}
           >
-            <Deleteic />
+            {loading.delete === meeting.id ? "Deleting..." : <Deleteic />}
           </button>
         ) : (
           !isDeleted && (
@@ -1110,49 +1125,6 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                       ))}
                     </select>
                   </div>
-
-                  <div className="meeting-col">
-                    <label htmlFor="agenda" className="meeting-label">
-                      Agenda
-                    </label>
-                    <input
-                      type="text"
-                      id="agenda"
-                      className="meeting-input"
-                      placeholder="One-line agenda"
-                      value={meetingForm.agenda}
-                      onChange={(e) =>
-                        setMeetingForm({
-                          ...meetingForm,
-                          agenda: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-
-                  <div className="meeting-col">
-                    <label htmlFor="assigned_to" className="meeting-label">
-                      Assign To
-                    </label>
-                    <select
-                      id="assigned_to"
-                      className="meeting-select"
-                      value={meetingForm.assigned_to}
-                      onChange={(e) =>
-                        setMeetingForm({
-                          ...meetingForm,
-                          assigned_to: e.target.value,
-                        })
-                      }
-                    >
-                      <option value="">Select Assignee</option>
-                      {allUsers.map((user) => (
-                        <option key={user.cs_user_id} value={user.cs_user_id}>
-                          {user.cs_user_name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
                 </div>
 
                 <hr className="meeting-divider" />
@@ -1185,6 +1157,21 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                         }}
                       />
                     </div>
+
+                    <div className="meeting-col">
+                      <select
+                        className="meeting-select"
+                        value={actionAssignedTo}
+                        onChange={(e) => setActionAssignedTo(e.target.value)}
+                      >
+                        <option value="">Assign Action To</option>
+                        {allUsers.map((user) => (
+                          <option key={user.cs_user_id} value={user.cs_user_id}>
+                            {user.cs_user_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </div>
 
@@ -1204,8 +1191,9 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                       <th>#</th>
                       <th>Action</th>
                       <th>Deadline</th>
+                      <th>Assigned To</th>
                       <th>Status</th>
-                      <th>Actions</th>
+                      <th>Remove</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1214,6 +1202,7 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                         <td>{index + 1}</td>
                         <td>{action.text}</td>
                         <td>{action.deadline || "-"}</td>
+                        <td>{action.assigned_to_name || "Unassigned"}</td>
                         <td className="meeting-status-pending">
                           {action.status}
                         </td>
@@ -1261,8 +1250,9 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                       e.stopPropagation();
                       saveMeeting();
                     }}
+                    disabled={loading.save}
                   >
-                    Save Meeting
+                    {loading.save ? "Saving..." : "Save Meeting"}
                   </button>
                   <button
                     className="meeting-btn meeting-btn-ghost"
@@ -1270,6 +1260,7 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                       e.stopPropagation();
                       endMeeting();
                     }}
+                    disabled={loading.save}
                   >
                     End / Reset
                   </button>
@@ -1293,8 +1284,7 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                     <th>Dept</th>
                     <th>Subject</th>
                     <th>Date</th>
-                    <th>Agenda</th>
-                    <th>Assigned To</th>
+                    <th>Assigned By</th>
                     <th>Status</th>
                     <th>Actions</th>
                   </tr>
@@ -1312,8 +1302,7 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                             <td>{meeting.dept}</td>
                             <td>{meeting.subject}</td>
                             <td>{meeting.date}</td>
-                            <td>{meeting.agenda || "-"}</td>
-                            <td>{meeting.assigned_to_name}</td>
+                            <td>{getUserNameById(meeting.assigned_by)}</td>
                             <td>
                               <span
                                 className={`meeting-status-badge ${getStatusBadgeClass(
@@ -1330,20 +1319,21 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                                   e.stopPropagation();
                                   deleteMeeting(meeting.id);
                                 }}
+                                disabled={loading.delete === meeting.id}
                               >
-                                <Deleteic />
+                                {loading.delete === meeting.id ? (
+                                  "Deleting..."
+                                ) : (
+                                  <Deleteic />
+                                )}
                               </button>
                             </td>
                           </tr>
 
                           {expandedMeeting === meeting.id && (
                             <tr className="meeting-details-row">
-                              <td colSpan="8">
+                              <td colSpan="7">
                                 <div className="meeting-details">
-                                  <div>
-                                    <strong>Assigned To:</strong>{" "}
-                                    {meeting.assigned_to_name}
-                                  </div>
                                   <div>
                                     <strong>Assigned By:</strong>{" "}
                                     {getUserNameById(meeting.assigned_by)}
@@ -1375,6 +1365,7 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                                             <th>#</th>
                                             <th>Action</th>
                                             <th>Deadline</th>
+                                            <th>Assigned To</th>
                                             <th>Status</th>
                                             <th>Update</th>
                                           </tr>
@@ -1387,6 +1378,10 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                                                 <td>{action.text}</td>
                                                 <td>
                                                   {action.deadline || "-"}
+                                                </td>
+                                                <td>
+                                                  {action.assigned_to_name ||
+                                                    "Unassigned"}
                                                 </td>
                                                 <td
                                                   className={
@@ -1408,6 +1403,10 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                                                       )
                                                     }
                                                     className="meeting-select meeting-select-small"
+                                                    disabled={
+                                                      loading.actionStatusUpdate ===
+                                                      action.id
+                                                    }
                                                   >
                                                     <option value="Pending">
                                                       Pending
@@ -1419,6 +1418,17 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                                                       Completed
                                                     </option>
                                                   </select>
+                                                  {loading.actionStatusUpdate ===
+                                                    action.id && (
+                                                    <span
+                                                      style={{
+                                                        marginLeft: "5px",
+                                                        fontSize: "12px",
+                                                      }}
+                                                    >
+                                                      Updating...
+                                                    </span>
+                                                  )}
                                                 </td>
                                               </tr>
                                             )
@@ -1432,7 +1442,7 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                                     )}
                                   </div>
 
-                                  {/* {canUserEditMeeting(meeting) && (
+                                  {canUserEditMeeting(meeting) && (
                                     <div style={{ marginTop: "12px" }}>
                                       <strong>Update Meeting Status:</strong>
                                       <select
@@ -1445,6 +1455,9 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                                         }
                                         className="meeting-select meeting-select-small"
                                         style={{ marginLeft: "10px" }}
+                                        disabled={
+                                          loading.statusUpdate === meeting.id
+                                        }
                                       >
                                         {statusOptions.map((option) => (
                                           <option key={option} value={option}>
@@ -1452,8 +1465,18 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                                           </option>
                                         ))}
                                       </select>
+                                      {loading.statusUpdate === meeting.id && (
+                                        <span
+                                          style={{
+                                            marginLeft: "5px",
+                                            fontSize: "12px",
+                                          }}
+                                        >
+                                          Updating...
+                                        </span>
+                                      )}
                                     </div>
-                                  )} */}
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -1462,7 +1485,7 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan="8" className="meeting-no-data">
+                        <td colSpan="7" className="meeting-no-data">
                           {filter
                             ? `No deleted meetings match "${filter}"`
                             : "No deleted meetings found"}
@@ -1480,8 +1503,7 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                           <td>{meeting.dept}</td>
                           <td>{meeting.subject}</td>
                           <td>{meeting.date}</td>
-                          <td>{meeting.agenda || "-"}</td>
-                          <td>{meeting.assigned_to_name}</td>
+                          <td>{getUserNameById(meeting.assigned_by)}</td>
                           <td>
                             <span
                               className={`meeting-status-badge ${getStatusBadgeClass(
@@ -1499,8 +1521,13 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                                   e.stopPropagation();
                                   deleteMeeting(meeting.id);
                                 }}
+                                disabled={loading.delete === meeting.id}
                               >
-                                <Deleteic />
+                                {loading.delete === meeting.id ? (
+                                  "Deleting..."
+                                ) : (
+                                  <Deleteic />
+                                )}
                               </button>
                             ) : (
                               "Not the owner"
@@ -1510,12 +1537,8 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
 
                         {expandedMeeting === meeting.id && (
                           <tr className="meeting-details-row">
-                            <td colSpan="8">
+                            <td colSpan="7">
                               <div className="meeting-details">
-                                <div>
-                                  <strong>Assigned To:</strong>{" "}
-                                  {meeting.assigned_to_name}
-                                </div>
                                 <div>
                                   <strong>Assigned By:</strong>{" "}
                                   {getUserNameById(meeting.assigned_by)}
@@ -1547,6 +1570,7 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                                           <th>#</th>
                                           <th>Action</th>
                                           <th>Deadline</th>
+                                          <th>Assigned To</th>
                                           <th>Status</th>
                                           <th>Update</th>
                                         </tr>
@@ -1558,6 +1582,10 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                                               <td>{actionIndex + 1}</td>
                                               <td>{action.text}</td>
                                               <td>{action.deadline || "-"}</td>
+                                              <td>
+                                                {action.assigned_to_name ||
+                                                  "Unassigned"}
+                                              </td>
                                               <td
                                                 className={
                                                   action.status === "Pending"
@@ -1578,6 +1606,10 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                                                     )
                                                   }
                                                   className="meeting-select meeting-select-small"
+                                                  disabled={
+                                                    loading.actionStatusUpdate ===
+                                                    action.id
+                                                  }
                                                 >
                                                   <option value="Pending">
                                                     Pending
@@ -1589,6 +1621,17 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                                                     Completed
                                                   </option>
                                                 </select>
+                                                {loading.actionStatusUpdate ===
+                                                  action.id && (
+                                                  <span
+                                                    style={{
+                                                      marginLeft: "5px",
+                                                      fontSize: "12px",
+                                                    }}
+                                                  >
+                                                    Updating...
+                                                  </span>
+                                                )}
                                               </td>
                                             </tr>
                                           )
@@ -1602,7 +1645,7 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                                   )}
                                 </div>
 
-                                {/* {canUserEditMeeting(meeting) && (
+                                {canUserEditMeeting(meeting) && (
                                   <div style={{ marginTop: "12px" }}>
                                     <strong>Update Meeting Status:</strong>
                                     <select
@@ -1615,6 +1658,9 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                                       }
                                       className="meeting-select meeting-select-small"
                                       style={{ marginLeft: "10px" }}
+                                      disabled={
+                                        loading.statusUpdate === meeting.id
+                                      }
                                     >
                                       {statusOptions.map((option) => (
                                         <option key={option} value={option}>
@@ -1622,8 +1668,18 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                                         </option>
                                       ))}
                                     </select>
+                                    {loading.statusUpdate === meeting.id && (
+                                      <span
+                                        style={{
+                                          marginLeft: "5px",
+                                          fontSize: "12px",
+                                        }}
+                                      >
+                                        Updating...
+                                      </span>
+                                    )}
                                   </div>
-                                )} */}
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -1632,7 +1688,7 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="8" className="meeting-no-data">
+                      <td colSpan="7" className="meeting-no-data">
                         {filter
                           ? `No meetings match "${filter}"`
                           : "No meetings added yet"}

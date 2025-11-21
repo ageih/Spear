@@ -23,7 +23,9 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
   const [deletedLetters, setDeletedLetters] = useState([]);
   const [filter, setFilter] = useState("");
   const [formVisible, setFormVisible] = useState(false);
-  const [formData, setFormData] = useState({});
+  const [formData, setFormData] = useState({
+    assigned_to: [], // Changed to array for multiple users
+  });
   const [previousFormData, setPreviousFormData] = useState({});
   const [editIndex, setEditIndex] = useState(null);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -46,22 +48,20 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
     }
   }, [filterToPage]);
 
-  // Date range filter function - IMPROVED (same as PolicyTracker)
+  // Date range filter function
   const getDateRangeFilter = (filterText) => {
     if (!filterText) return null;
 
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Normalize to start of day
+    today.setHours(0, 0, 0, 0);
     const filterLower = filterText.toLowerCase().trim();
 
     if (filterLower.includes("due this week")) {
       const startOfWeek = new Date(today);
-      startOfWeek.setDate(today.getDate() - today.getDay()); // Sunday
+      startOfWeek.setDate(today.getDate() - today.getDay());
       const endOfWeek = new Date(startOfWeek);
-      endOfWeek.setDate(startOfWeek.getDate() + 6); // Saturday
-      endOfWeek.setHours(23, 59, 59, 999); // End of day
-
-      console.log("Week filter - Start:", startOfWeek, "End:", endOfWeek);
+      endOfWeek.setDate(startOfWeek.getDate() + 6);
+      endOfWeek.setHours(23, 59, 59, 999);
       return { type: "week", start: startOfWeek, end: endOfWeek };
     }
 
@@ -69,8 +69,6 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
       const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
       const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
       endOfMonth.setHours(23, 59, 59, 999);
-
-      console.log("Month filter - Start:", startOfMonth, "End:", endOfMonth);
       return { type: "month", start: startOfMonth, end: endOfMonth };
     }
 
@@ -84,7 +82,7 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
     return null;
   };
 
-  // Check if letter is pending - FIXED to handle different status formats
+  // Check if letter is pending
   const isLetterPending = (letter) => {
     const status = (letter.status || "").toLowerCase();
     return (
@@ -92,13 +90,12 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
     );
   };
 
-  // Check if deadline is within date range - IMPROVED for API date format
+  // Check if deadline is within date range
   const isDeadlineInRange = (deadline, start, end) => {
     if (!deadline || deadline === "N/A" || deadline === "") return false;
 
     try {
-      // Handle API date format - extract just the date part if needed
-      const datePart = deadline.split(" ")[0]; // Get "2025-10-31" from "2025-10-31 21:32:43"
+      const datePart = deadline.split(" ")[0];
       const deadlineDate = new Date(datePart);
 
       if (isNaN(deadlineDate.getTime())) {
@@ -106,17 +103,7 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
         return false;
       }
 
-      deadlineDate.setHours(0, 0, 0, 0); // Normalize to start of day
-
-      console.log("Checking deadline:", {
-        original: deadline,
-        datePart: datePart,
-        deadlineDate: deadlineDate,
-        start: start,
-        end: end,
-        inRange: deadlineDate >= start && deadlineDate <= end,
-      });
-
+      deadlineDate.setHours(0, 0, 0, 0);
       return deadlineDate >= start && deadlineDate <= end;
     } catch (error) {
       console.error("Invalid deadline date:", deadline, error);
@@ -134,9 +121,7 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
 
     const users = [];
 
-    // Iterate through all keys in levelUsers object
     Object.keys(valueuser).forEach((key) => {
-      // Check if the value is an array (like level1, level2, etc.)
       if (Array.isArray(valueuser[key])) {
         users.push(...valueuser[key]);
       }
@@ -151,6 +136,14 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
     return foundUser ? foundUser.cs_user_name : userId || "Unassigned";
   };
 
+  // Get user names for multiple assigned users
+  const getAssignedUserNames = (userIds) => {
+    if (!userIds || !Array.isArray(userIds)) return ["Unassigned"];
+    return userIds
+      .map((userId) => getUserNameById(userId))
+      .filter((name) => name !== "Unassigned");
+  };
+
   const toggleRow = (index) => {
     setExpandedRow(expandedRow === index ? null : index);
   };
@@ -162,6 +155,7 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
         ...prev,
         assigned_by: userData.user.user_id,
         user_id: userData.user.user_id,
+        assigned_to: [], // Initialize as empty array
       }));
     }
   }, [userData]);
@@ -175,23 +169,20 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
     }
   }, [userLoading, isloading, userData]);
 
-  // Update summary counts with proper filtering logic - UPDATED to use letter_date
+  // Update summary counts
   const updateSummaryCounts = (updatedLetters) => {
     if (!setSummaryInfo) return;
 
     const today = new Date();
 
-    // Important count - Letters with "Important" status
     const importantCount = updatedLetters.filter(
       (l) => !l.deleted && l.status && l.status.toLowerCase() === "important"
     ).length;
 
-    // Critical count - Letters with "Critical" status
     const criticalCount = updatedLetters.filter(
       (l) => !l.deleted && l.status && l.status.toLowerCase() === "critical"
     ).length;
 
-    // Due This Week count - pending letters with letter_date this week
     const startOfWeek = new Date(today);
     startOfWeek.setDate(today.getDate() - today.getDay());
     const endOfWeek = new Date(startOfWeek);
@@ -202,7 +193,6 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
       return isDeadlineInRange(l.letter_date, startOfWeek, endOfWeek);
     }).length;
 
-    // Due This Month count - pending letters with letter_date this month
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
     const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
 
@@ -211,24 +201,7 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
       return isDeadlineInRange(l.letter_date, startOfMonth, endOfMonth);
     }).length;
 
-    // Total count - all non-deleted letters
     const totalCount = updatedLetters.filter((l) => !l.deleted).length;
-
-    // Debug logging to see what's being counted
-    console.log("📊 Letter summary counts debug:", {
-      important: importantCount,
-      critical: criticalCount,
-      dueThisWeek: dueThisWeekCount,
-      dueThisMonth: dueThisMonthCount,
-      total: totalCount,
-      totalLetters: updatedLetters.length,
-      importantLetters: updatedLetters
-        .filter(
-          (l) =>
-            !l.deleted && l.status && l.status.toLowerCase() === "important"
-        )
-        .map((l) => ({ subject: l.letter_subject, status: l.status })),
-    });
 
     setSummaryInfo((prev) => ({
       ...prev,
@@ -237,7 +210,6 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
         { label: "Critical", value: criticalCount },
         { label: "Due This Week", value: dueThisWeekCount },
         { label: "Due this month", value: dueThisMonthCount },
-        // { label: "Total", value: totalCount },
       ],
     }));
   };
@@ -270,14 +242,21 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
       }
 
       const processedLetters = lettersFromAPI.map((letter) => {
+        // Handle both single user and multiple users assignment
+        const assignedTo = Array.isArray(letter.assigned_to)
+          ? letter.assigned_to
+          : letter.assigned_to
+          ? [letter.assigned_to]
+          : [];
+
         const mappedLetter = {
           LT_id: letter.LT_id,
           date_of_dispatch: letter.date_of_dispatch,
           letter_subject: letter.letter_subject,
           letter_number: letter.letter_number,
           description: letter.description,
-          assigned_to: letter.assigned_to,
-          assigned_to_name: getUserNameById(letter.assigned_to),
+          assigned_to: assignedTo,
+          assigned_to_names: getAssignedUserNames(assignedTo),
           letter_date: letter.letter_date,
           status: letter.status,
           assigned_by: letter.assigned_by,
@@ -295,11 +274,18 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
         return mappedLetter;
       });
 
-      setLetters(processedLetters);
-      updateSummaryCounts(processedLetters);
+      // Append new letters to existing array instead of replacing
+      setLetters((prev) => {
+        const existingIds = new Set(prev.map((l) => l.LT_id));
+        const newLetters = processedLetters.filter(
+          (l) => !existingIds.has(l.LT_id)
+        );
+        return [...newLetters, ...prev]; // New letters at the top
+      });
+
+      updateSummaryCounts([...processedLetters, ...letters]);
     } catch (error) {
       console.error("❌ Error fetching letters:", error);
-      console.error("Error details:", error.response?.data || error.message);
     } finally {
       setLoading(false);
     }
@@ -330,14 +316,20 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
       }
 
       const processedLetters = lettersFromAPI.map((letter) => {
+        const assignedTo = Array.isArray(letter.assigned_to)
+          ? letter.assigned_to
+          : letter.assigned_to
+          ? [letter.assigned_to]
+          : [];
+
         const mappedLetter = {
           LT_id: letter.LT_id,
           date_of_dispatch: letter.date_of_dispatch,
           letter_subject: letter.letter_subject,
           letter_number: letter.letter_number,
           description: letter.description,
-          assigned_to: letter.assigned_to,
-          assigned_to_name: getUserNameById(letter.assigned_to),
+          assigned_to: assignedTo,
+          assigned_to_names: getAssignedUserNames(assignedTo),
           letter_date: letter.letter_date,
           status: letter.status,
           assigned_by: letter.assigned_by,
@@ -354,10 +346,15 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
         return mappedLetter;
       });
 
-      setDeletedLetters(processedLetters);
+      setDeletedLetters((prev) => {
+        const existingIds = new Set(prev.map((l) => l.LT_id));
+        const newLetters = processedLetters.filter(
+          (l) => !existingIds.has(l.LT_id)
+        );
+        return [...newLetters, ...prev];
+      });
     } catch (error) {
       console.error("❌ Error fetching deleted letters:", error);
-      console.error("Error details:", error.response?.data || error.message);
     }
   };
 
@@ -392,10 +389,36 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
     await fetchHistory(data);
   };
 
+  // Handle multi-user selection
+  const handleUserSelection = (userId) => {
+    setFormData((prev) => {
+      const currentAssigned = prev.assigned_to || [];
+      const isSelected = currentAssigned.includes(userId);
+
+      if (isSelected) {
+        return {
+          ...prev,
+          assigned_to: currentAssigned.filter((id) => id !== userId),
+        };
+      } else {
+        return {
+          ...prev,
+          assigned_to: [...currentAssigned, userId],
+        };
+      }
+    });
+  };
+
   // Handle Save (Add / Edit)
   const handleSave = async () => {
     if (!userData?.user?.user_id) {
       alert("User not authenticated. Please log in again.");
+      return;
+    }
+
+    // Validate assigned_to
+    if (!formData.assigned_to || formData.assigned_to.length === 0) {
+      alert("Please assign at least one user.");
       return;
     }
 
@@ -420,7 +443,7 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
           letter_subject: formData.letter_subject,
           letter_number: formData.letter_number,
           description: formData.description,
-          assigned_to: formData.assigned_to,
+          assigned_to: formData.assigned_to, // Now an array
           letter_date: formData.letter_date,
           status: formData.status,
           assigned_by: userData.user.user_id,
@@ -438,20 +461,24 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
           edit_comment: formData.comment || "",
         });
 
-        const updatedLetters = [...letters];
-        updatedLetters[editIndex] = {
-          ...formData,
-          assigned_to_name: getUserNameById(formData.assigned_to),
-          assigned_by: userData.user.user_id,
-          assigned_by_name: getUserNameById(userData.user.user_id),
-          deleted: false,
-          isEdited: true,
-          updated_at: new Date().toISOString(),
-          user_id: userData.user.user_id,
-          edit_changes: changes,
-        };
-        setLetters(updatedLetters);
-        updateSummaryCounts(updatedLetters);
+        // Update local state without fetching again
+        setLetters((prev) =>
+          prev.map((letter, index) =>
+            index === editIndex
+              ? {
+                  ...formData,
+                  assigned_to_names: getAssignedUserNames(formData.assigned_to),
+                  assigned_by: userData.user.user_id,
+                  assigned_by_name: getUserNameById(userData.user.user_id),
+                  deleted: false,
+                  isEdited: true,
+                  updated_at: new Date().toISOString(),
+                  user_id: userData.user.user_id,
+                }
+              : letter
+          )
+        );
+
         alert("Letter updated successfully!");
       } else {
         console.log("🆕 Adding new letter:", formData);
@@ -461,7 +488,7 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
           letter_subject: formData.letter_subject,
           letter_number: formData.letter_number,
           description: formData.description,
-          assigned_to: formData.assigned_to,
+          assigned_to: formData.assigned_to, // Now an array
           letter_date: formData.letter_date,
           status: formData.status,
           assigned_by: userData.user.user_id,
@@ -476,21 +503,21 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
 
         console.log("✅ New letter response:", response.data);
 
-        let newLetter = response.data;
+        let newLetterId = response.data;
         if (response.data.data) {
-          newLetter = response.data.data;
+          newLetterId = response.data.data;
         } else if (response.data.response) {
-          newLetter = response.data.insertedId;
+          newLetterId = response.data.insertedId;
         }
 
         const mappedNewLetter = {
-          LT_id: newLetter,
+          LT_id: newLetterId,
           date_of_dispatch: formData.date_of_dispatch,
           letter_subject: formData.letter_subject,
           letter_number: formData.letter_number,
           description: formData.description,
           assigned_to: formData.assigned_to,
-          assigned_to_name: getUserNameById(formData.assigned_to),
+          assigned_to_names: getAssignedUserNames(formData.assigned_to),
           letter_date: formData.letter_date,
           status: formData.status,
           assigned_by: userData.user.user_id,
@@ -503,22 +530,17 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
           isEdited: false,
         };
 
-        const updatedLetters = [...letters, mappedNewLetter];
-        setLetters(updatedLetters);
-        updateSummaryCounts(updatedLetters);
+        // Add new letter to the top without fetching again
+        setLetters((prev) => [mappedNewLetter, ...prev]);
+        updateSummaryCounts([mappedNewLetter, ...letters]);
       }
 
       setFormVisible(false);
-      setFormData({});
+      setFormData({ assigned_to: [] });
       setEditIndex(null);
-
-      // Refresh data after save
-      fetchLetters();
-      fetchDeletedLetters();
     } catch (error) {
       console.error("❌ Error saving letter:", error);
-      console.error("Error response:", error.response?.data);
-      alert("Could not save the letter!.");
+      alert("Could not save the letter!");
     }
   };
 
@@ -526,7 +548,10 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
   const handleEdit = (index) => {
     const letter = letters[index];
     console.log("✏️ Editing letter:", letter);
-    setFormData(letter);
+    setFormData({
+      ...letter,
+      assigned_to: letter.assigned_to || [], // Ensure it's an array
+    });
     setPreviousFormData(letter);
     setFormVisible(true);
     setEditIndex(index);
@@ -539,7 +564,6 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
       return;
     }
 
-    console.log("herre checking for ltttid", LT_id);
     if (!LT_id) {
       alert("LC id invalid!");
       return;
@@ -549,20 +573,18 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
     if (!confirmDelete) return;
 
     try {
-      const deletion = await axios.delete(
+      await axios.delete(
         `${gapi}/LT?user_id=${userData.user.user_id}&LT_id=${LT_id}&permanent=false`
       );
-      console.log("deletion response", deletion, LT_id);
 
-      const updatedLetters = letters.map((l) =>
-        l.LT_id === LT_id ? { ...l, deleted: true } : l
-      );
-      setLetters(updatedLetters);
-      updateSummaryCounts(updatedLetters);
-
-      // Refresh data after delete
-      fetchLetters();
-      fetchDeletedLetters();
+      // Update local state without fetching again
+      setLetters((prev) => prev.filter((letter) => letter.LT_id !== LT_id));
+      setDeletedLetters((prev) => {
+        const deletedLetter = letters.find((l) => l.LT_id === LT_id);
+        return deletedLetter
+          ? [{ ...deletedLetter, deleted: true }, ...prev]
+          : prev;
+      });
 
       alert("Letter moved to Bin!");
     } catch (error) {
@@ -588,6 +610,7 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
         `${gapi}/LT?user_id=${userData.user.user_id}&LT_id=${letterData.LT_id}&permanent=true`
       );
 
+      // Update local state without fetching again
       setDeletedLetters((prev) => prev.filter((_, i) => i !== index));
       alert("Letter permanently deleted!");
     } catch (error) {
@@ -596,18 +619,20 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
     }
   };
 
-  // Status color helper
+  // Enhanced status color helper with better visuals
   const statusClass = (status) => {
     const s = (status || "").toLowerCase();
-    if (s === "pending") return "open";
-    if (s === "in progress") return "inprogress";
-    if (s === "completed") return "closed";
-    if (s === "dispatched") return "dispatched";
-    if (s === "open") return "open";
-    if (s === "closed") return "closed";
-    if (s === "important") return "important";
-    if (s === "critical") return "critical";
-    return "open";
+    const statusClasses = {
+      pending: "status-pending",
+      "in progress": "status-inprogress",
+      completed: "status-completed",
+      dispatched: "status-dispatched",
+      open: "status-open",
+      closed: "status-closed",
+      important: "status-important",
+      critical: "status-critical",
+    };
+    return statusClasses[s] || "status-open";
   };
 
   // Format status for display
@@ -632,14 +657,18 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
     }
 
     const currentUserId = userData.user.user_id;
+    const assignedTo = Array.isArray(letter.assigned_to)
+      ? letter.assigned_to
+      : [letter.assigned_to];
+
     return (
       currentUserId === letter.user_id ||
-      currentUserId === letter.assigned_to ||
+      assignedTo.includes(currentUserId) ||
       currentUserId === letter.assigned_by
     );
   };
 
-  // Filtered data based on current filter - UPDATED to use letter_date
+  // Filtered data based on current filter
   const filteredLetters = letters
     .filter((l) => !l.deleted)
     .filter((l) => {
@@ -647,51 +676,26 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
 
       const dateRangeFilter = getDateRangeFilter(filter);
 
-      // Handle special date filters
       if (dateRangeFilter) {
         const isPending = isLetterPending(l);
         const inRange = isDeadlineInRange(
-          l.letter_date, // Changed from date_of_dispatch to letter_date
+          l.letter_date,
           dateRangeFilter.start,
           dateRangeFilter.end
         );
 
-        console.log("🔍 Letter filter debug:", {
-          letter: l.letter_subject,
-          status: l.status,
-          isPending: isPending,
-          letter_date: l.letter_date, // Changed from date_of_dispatch
-          inRange: inRange,
-          dateRange: dateRangeFilter.type,
-          shouldShow: isPending && inRange,
-        });
-
-        // For date range filters, only show pending letters within the date range
-        if (!isPending) {
-          console.log(
-            `❌ ${l.letter_subject} - Status is not pending (current: "${l.status}")`
-          );
-          return false;
-        }
-        if (!inRange) {
-          console.log(
-            `❌ ${l.letter_subject} - Letter date "${l.letter_date}" not in ${dateRangeFilter.type} range` // Updated message
-          );
-          return false;
-        }
-        console.log(
-          `✅ ${l.letter_subject} - Matches filter (Status: pending, Letter date: "${l.letter_date}")` // Updated message
-        );
-        return true;
+        if (!isPending) return false;
+        return inRange;
       }
 
-      // Regular text search
       const searchTerm = filter.toLowerCase();
       return (
         (l.letter_subject || "").toLowerCase().includes(searchTerm) ||
         (l.letter_number || "").toLowerCase().includes(searchTerm) ||
         (l.description || "").toLowerCase().includes(searchTerm) ||
-        (l.assigned_to_name || "").toLowerCase().includes(searchTerm) ||
+        (l.assigned_to_names || []).some((name) =>
+          name.toLowerCase().includes(searchTerm)
+        ) ||
         (l.status || "").toLowerCase().includes(searchTerm) ||
         (l.current_stage || "").toLowerCase().includes(searchTerm)
       );
@@ -705,7 +709,7 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
     if (dateRangeFilter) {
       const isPending = isLetterPending(l);
       const inRange = isDeadlineInRange(
-        l.letter_date, // Changed from date_of_dispatch to letter_date
+        l.letter_date,
         dateRangeFilter.start,
         dateRangeFilter.end
       );
@@ -719,10 +723,15 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
       (l.letter_subject || "").toLowerCase().includes(searchTerm) ||
       (l.letter_number || "").toLowerCase().includes(searchTerm) ||
       (l.description || "").toLowerCase().includes(searchTerm) ||
-      (l.assigned_to_name || "").toLowerCase().includes(searchTerm) ||
+      (l.assigned_to_names || []).some((name) =>
+        name.toLowerCase().includes(searchTerm)
+      ) ||
       (l.status || "").toLowerCase().includes(searchTerm)
     );
   });
+
+  // Check if mobile view
+  const isMobile = window.innerWidth <= 768;
 
   // Show loading/error states
   if (userLoading) {
@@ -765,35 +774,12 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
 
         {/* Show active filter badge */}
         {filter && (
-          <div
-            style={{
-              marginBottom: "15px",
-              padding: "8px 12px",
-              backgroundColor: "#e3f2fd",
-              border: "1px solid #2196f3",
-              borderRadius: "4px",
-              color: "#1976d2",
-              fontSize: "14px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
+          <div className="filter-badge">
             <span>
               🔍 Filtering by: <strong>{filter}</strong>
               {filterToPage && filterToPage === filter && " (from dashboard)"}
             </span>
-            <button
-              onClick={() => setFilter("")}
-              style={{
-                background: "none",
-                border: "none",
-                color: "#1976d2",
-                cursor: "pointer",
-                textDecoration: "underline",
-                fontSize: "12px",
-              }}
-            >
+            <button onClick={() => setFilter("")} className="clear-filter-btn">
               Clear Filter
             </button>
           </div>
@@ -801,57 +787,12 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
 
         {/* History Modal */}
         {historyOpen && history && (
-          <div
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              width: "100%",
-              height: "100%",
-              background: "rgba(0,0,0,0.7)",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              zIndex: 1000,
-            }}
-          >
-            <div
-              style={{
-                width: "90%",
-                maxWidth: "800px",
-                height: "80%",
-                background: "#fff",
-                border: "1px solid #ccc",
-                borderRadius: "8px",
-                padding: "20px",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-                overflowY: "auto",
-                position: "relative",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: "20px",
-                  borderBottom: "1px solid #eee",
-                  paddingBottom: "10px",
-                }}
-              >
-                <h2 style={{ margin: 0, color: "#333" }}>Edit History</h2>
+          <div className="modal-overlay">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h2>Edit History</h2>
                 <button
-                  style={{
-                    background: "#ff4444",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "50%",
-                    width: "30px",
-                    height: "30px",
-                    cursor: "pointer",
-                    fontSize: "16px",
-                    fontWeight: "bold",
-                  }}
+                  className="close-modal-btn"
                   onClick={() => {
                     setHistory(null);
                     setHistoryOpen(false);
@@ -862,53 +803,29 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
               </div>
 
               {history.length > 0 ? (
-                <div
-                  style={{ maxHeight: "calc(100% - 60px)", overflowY: "auto" }}
-                >
+                <div className="history-content">
                   {history
                     .slice()
                     .reverse()
                     .map((update, index) => (
                       <div
                         key={update.update_id || index}
-                        style={{
-                          marginBottom: "20px",
-                          padding: "15px",
-                          border: "1px solid #e0e0e0",
-                          borderRadius: "6px",
-                          background: "#f9f9f9",
-                        }}
+                        className="history-item"
                       >
-                        <div style={{ marginBottom: "10px" }}>
-                          <strong style={{ color: "#2196f3" }}>
+                        <div className="history-meta">
+                          <strong>
                             {new Date(update.updated_at).toLocaleString()}
                           </strong>
-                          <span style={{ margin: "0 10px" }}>•</span>
+                          <span>•</span>
                           Updated by:{" "}
                           <strong>{update.updated_by || "System"}</strong>
                         </div>
 
                         {update.old_data &&
                           Object.keys(update.old_data).length > 0 && (
-                            <div
-                              style={{
-                                margin: "10px 0",
-                                padding: "10px",
-                                background: "#fff3cd",
-                                borderRadius: "4px",
-                                border: "1px solid #ffeaa7",
-                              }}
-                            >
-                              <strong style={{ color: "#856404" }}>
-                                Previous Data:
-                              </strong>
-                              <div
-                                style={{
-                                  paddingLeft: "15px",
-                                  marginTop: "8px",
-                                  fontSize: "14px",
-                                }}
-                              >
+                            <div className="history-old-data">
+                              <strong>Previous Data:</strong>
+                              <div className="history-details">
                                 {Object.entries(update.old_data)
                                   .filter(
                                     ([key]) =>
@@ -921,10 +838,7 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
                                       ].includes(key)
                                   )
                                   .map(([key, value]) => (
-                                    <div
-                                      key={key}
-                                      style={{ marginBottom: "4px" }}
-                                    >
+                                    <div key={key}>
                                       <b>{key}:</b>{" "}
                                       {value !== null && value !== undefined
                                         ? value.toString()
@@ -937,45 +851,19 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
 
                         {update.changes &&
                           Object.keys(update.changes).length > 0 && (
-                            <div
-                              style={{
-                                margin: "10px 0",
-                                padding: "10px",
-                                background: "#d1ecf1",
-                                borderRadius: "4px",
-                                border: "1px solid #bee5eb",
-                              }}
-                            >
-                              <strong style={{ color: "#0c5460" }}>
-                                Changes Made:
-                              </strong>
-                              <ul
-                                style={{
-                                  paddingLeft: "20px",
-                                  marginTop: "8px",
-                                  marginBottom: 0,
-                                }}
-                              >
+                            <div className="history-changes">
+                              <strong>Changes Made:</strong>
+                              <ul>
                                 {Object.entries(update.changes).map(
                                   ([field, change]) => (
-                                    <li
-                                      key={field}
-                                      style={{ marginBottom: "6px" }}
-                                    >
+                                    <li key={field}>
                                       <b>{field}:</b>
-                                      <span style={{ color: "#e74c3c" }}>
+                                      <span className="change-old">
                                         {" "}
                                         {change?.old ?? "-"}
                                       </span>
-                                      <span
-                                        style={{
-                                          margin: "0 8px",
-                                          color: "#7f8c8d",
-                                        }}
-                                      >
-                                        →
-                                      </span>
-                                      <span style={{ color: "#27ae60" }}>
+                                      <span className="change-arrow"> → </span>
+                                      <span className="change-new">
                                         {change?.new ?? "-"}
                                       </span>
                                     </li>
@@ -989,13 +877,7 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
                           Object.keys(update.old_data).length === 0) &&
                           (!update.changes ||
                             Object.keys(update.changes).length === 0) && (
-                            <div
-                              style={{
-                                color: "#7f8c8d",
-                                fontStyle: "italic",
-                                textAlign: "center",
-                              }}
-                            >
+                            <div className="no-changes">
                               No detailed change information available
                             </div>
                           )}
@@ -1003,14 +885,7 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
                     ))}
                 </div>
               ) : (
-                <div
-                  style={{
-                    textAlign: "center",
-                    padding: "40px",
-                    color: "#7f8c8d",
-                    fontStyle: "italic",
-                  }}
-                >
+                <div className="no-history">
                   No history available for this letter
                 </div>
               )}
@@ -1038,6 +913,8 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
               onClick={(e) => {
                 e.stopPropagation();
                 setFormVisible(!formVisible);
+                setFormData({ assigned_to: [] });
+                setEditIndex(null);
               }}
             >
               {formVisible ? "Close form" : "Add new"}
@@ -1048,12 +925,16 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
           </button>
         </div>
 
-        {/* Form */}
+        {/* Enhanced Form with Labels and Multi-User Selection */}
         {formVisible && !showBin && (
-          <div className="formWrap">
-            <div className="formRow">
-              <div className="dateField">
-                <label>Date of Dispatch: </label>
+          <div className="formWrap enhanced-form">
+            <h3>{editIndex !== null ? "Edit Letter" : "Add New Letter"}</h3>
+
+            <div className="form-grid">
+              <div className="form-field">
+                <label>
+                  Date of Dispatch: <span className="required">*</span>
+                </label>
                 <DatePicker
                   selected={
                     formData.date_of_dispatch
@@ -1067,73 +948,55 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
                     })
                   }
                   dateFormat="yyyy-MM-dd"
-                  readOnly={editIndex !== null}
                   placeholderText="Select date"
+                  className="form-input"
                 />
               </div>
-              <input
-                placeholder="Letter Subject"
-                value={formData.letter_subject || ""}
-                onChange={(e) =>
-                  setFormData({ ...formData, letter_subject: e.target.value })
-                }
-              />
-              <input
-                placeholder="Letter No"
-                value={formData.letter_number || ""}
-                onChange={(e) =>
-                  setFormData({ ...formData, letter_number: e.target.value })
-                }
-              />
 
-              {/* Updated Assigned To Field - Dropdown with user names */}
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                <label
-                  style={{
-                    fontSize: "12px",
-                    marginBottom: "4px",
-                    color: "#666",
-                  }}
-                >
-                  Assigned to: <span style={{ color: "red" }}>*</span>
+              <div className="form-field">
+                <label>
+                  Letter Subject: <span className="required">*</span>
                 </label>
-                <select
-                  value={formData.assigned_to || ""}
+                <input
+                  placeholder="Enter letter subject"
+                  value={formData.letter_subject || ""}
                   onChange={(e) =>
-                    setFormData({ ...formData, assigned_to: e.target.value })
+                    setFormData({ ...formData, letter_subject: e.target.value })
                   }
-                  style={{
-                    padding: "8px",
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                    minWidth: "150px",
-                    borderColor: !formData.assigned_to ? "red" : "#ccc",
-                  }}
-                  required
-                >
-                  <option value="">Select User</option>
-                  {allUsers.map((user) => (
-                    <option key={user.cs_user_id} value={user.cs_user_id}>
-                      {user.cs_user_name}
-                    </option>
-                  ))}
-                </select>
-                {!formData.assigned_to && (
-                  <small style={{ color: "red", marginTop: "4px" }}>
-                    Please select an assignee
-                  </small>
-                )}
+                  className="form-input"
+                />
               </div>
 
-              <input
-                placeholder="Current Stage"
-                value={formData.current_stage || ""}
-                onChange={(e) =>
-                  setFormData({ ...formData, current_stage: e.target.value })
-                }
-              />
-              <div className="dateField">
-                <label>Letter Date: </label>
+              <div className="form-field">
+                <label>
+                  Letter Number: <span className="required">*</span>
+                </label>
+                <input
+                  placeholder="Enter letter number"
+                  value={formData.letter_number || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, letter_number: e.target.value })
+                  }
+                  className="form-input"
+                />
+              </div>
+
+              <div className="form-field">
+                <label>Current Stage:</label>
+                <input
+                  placeholder="Enter current stage"
+                  value={formData.current_stage || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, current_stage: e.target.value })
+                  }
+                  className="form-input"
+                />
+              </div>
+
+              <div className="form-field">
+                <label>
+                  Letter Date: <span className="required">*</span>
+                </label>
                 <DatePicker
                   selected={
                     formData.letter_date ? new Date(formData.letter_date) : null
@@ -1145,66 +1008,114 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
                     })
                   }
                   dateFormat="yyyy-MM-dd"
-                  readOnly={editIndex !== null}
                   placeholderText="Select date"
+                  className="form-input"
                 />
               </div>
 
-              <select
-                value={formData.status || ""}
-                onChange={(e) =>
-                  setFormData({ ...formData, status: e.target.value })
-                }
-              >
-                <option value="">Select status</option>
-                <option value="Important">Important</option>
-                <option value="Pending">Pending</option>
-                <option value="Critical">Critical</option>
-                <option value="in progress">In Progress</option>
-                <option value="completed">Completed</option>
-                <option value="dispatched">Dispatched</option>
-                <option value="open">Open</option>
-                <option value="closed">Closed</option>
-              </select>
-            </div>
-            <textarea
-              placeholder="Description"
-              value={formData.description || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, description: e.target.value })
-              }
-              style={{ marginTop: 10 }}
-            />
-            {editIndex !== null && (
-              <div style={{ marginTop: 10 }}>
-                <label style={{ fontSize: "12px", color: "#666" }}>
-                  Edit Comment / Note:
+              <div className="form-field">
+                <label>
+                  Status: <span className="required">*</span>
                 </label>
+                <select
+                  value={formData.status || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, status: e.target.value })
+                  }
+                  className="form-input"
+                >
+                  <option value="">Select status</option>
+                  <option value="Important">Important</option>
+                  <option value="Pending">Pending</option>
+                  <option value="Critical">Critical</option>
+                  <option value="in progress">In Progress</option>
+                  <option value="completed">Completed</option>
+                  <option value="dispatched">Dispatched</option>
+                  <option value="open">Open</option>
+                  <option value="closed">Closed</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Multi-User Assignment */}
+            <div className="form-field full-width">
+              <label>
+                Assigned to: <span className="required">*</span>
+              </label>
+              <div className="user-selection-container">
+                <div className="user-selection-grid">
+                  {allUsers.map((user) => (
+                    <div
+                      key={user.cs_user_id}
+                      className={`user-option ${
+                        formData.assigned_to?.includes(user.cs_user_id)
+                          ? "selected"
+                          : ""
+                      }`}
+                      onClick={() => handleUserSelection(user.cs_user_id)}
+                    >
+                      <div className="user-checkbox">
+                        {formData.assigned_to?.includes(user.cs_user_id) && (
+                          <div className="checkmark">✓</div>
+                        )}
+                      </div>
+                      <span className="user-name">{user.cs_user_name}</span>
+                    </div>
+                  ))}
+                </div>
+                {formData.assigned_to && formData.assigned_to.length > 0 && (
+                  <div className="selected-users">
+                    <strong>Selected: </strong>
+                    {getAssignedUserNames(formData.assigned_to).join(", ")}
+                  </div>
+                )}
+                {(!formData.assigned_to ||
+                  formData.assigned_to.length === 0) && (
+                  <div className="selection-warning">
+                    Please select at least one user
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="form-field full-width">
+              <label>Description:</label>
+              <textarea
+                placeholder="Enter letter description"
+                value={formData.description || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
+                className="form-textarea"
+                rows="3"
+              />
+            </div>
+
+            {editIndex !== null && (
+              <div className="form-field full-width">
+                <label>Edit Comment / Note:</label>
                 <textarea
                   placeholder="Add a comment about this edit"
                   value={formData.comment || ""}
                   onChange={(e) =>
                     setFormData({ ...formData, comment: e.target.value })
                   }
-                  style={{
-                    marginTop: 6,
-                    width: "100%",
-                    padding: "8px",
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                    minHeight: "60px",
-                  }}
+                  className="form-textarea"
+                  rows="2"
                 />
               </div>
             )}
 
             <div className="formButtons">
-              <button onClick={handleSave}>Save</button>
+              <button onClick={handleSave} className="save-btn">
+                {editIndex !== null ? "Update Letter" : "Add Letter"}
+              </button>
               <button
                 className="ghost"
                 onClick={() => {
                   setFormVisible(false);
-                  setFormData({});
+                  setFormData({ assigned_to: [] });
+                  setEditIndex(null);
                 }}
               >
                 Cancel
@@ -1219,171 +1130,296 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
             {/* Active Letters Section */}
             <h3>Active Letters ({filteredLetters.length})</h3>
             {filteredLetters.length === 0 ? (
-              <div
-                style={{ textAlign: "center", padding: "20px", color: "#666" }}
-              >
+              <div className="no-data">
                 {filter
                   ? `No letters found matching "${filter}"`
                   : "No letters found. Click 'Add new' to create your first letter."}
               </div>
-            ) : (
-              <table>
-                <thead>
-                  <tr>
-                    <th>Sl No</th>
-                    <th>Date of Dispatch</th>
-                    <th>Letter Subject</th>
-                    <th>Letter No</th>
-                    <th>Description</th>
-                    <th>Letter Date</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                    <th>Last Updated</th>
-                  </tr>
-                </thead>
-                <tbody style={{ textAlign: "start" }}>
-                  {filteredLetters.map((l, index) => (
-                    <React.Fragment key={l.LT_id || index}>
-                      <tr
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          toggleRow(index);
-                        }}
-                        className="letter-row"
-                        style={{
-                          cursor: "pointer",
-                          backgroundColor:
-                            expandedRow === index ? "#f9f9f9" : "white",
-                          transition: "background 0.2s ease",
-                        }}
-                      >
-                        <td>{index + 1}</td>
-                        <td>{l.date_of_dispatch || "-"}</td>
-                        <td>{l.letter_subject || "-"}</td>
-                        <td>{l.letter_number || "-"}</td>
-                        <td className="muted">{l.description || "-"}</td>
-                        <td>{l.letter_date || "-"}</td>
-                        <td>
-                          <span className={`status ${statusClass(l.status)}`}>
-                            {formatStatus(l.status)}
-                          </span>
-                        </td>
-                        <td className="actions">
-                          {canUserEditLetter(l) ? (
-                            <>
-                              <button
-                                className="iconcon"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const originalIndex = letters.findIndex(
-                                    (letter) => letter.LT_id === l.LT_id
-                                  );
-                                  handleEdit(originalIndex);
-                                }}
-                              >
-                                <Editic />
-                              </button>
-                              <button
-                                className="iconcon"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDelete(l.LT_id);
-                                }}
-                              >
-                                <Deleteic />
-                              </button>
-                            </>
-                          ) : (
-                            "Not the owner"
-                          )}
-                        </td>
-                        <td>
-                          <button
-                            style={{
-                              background: l.isEdited ? "#e3f2fd" : "#f5f5f5",
-                              color: l.isEdited ? "#1976d2" : "#666",
-                              border: l.isEdited
-                                ? "1px solid #2196f3"
-                                : "1px solid #ddd",
-                              padding: "6px 12px",
-                              borderRadius: "4px",
-                              cursor: l.isEdited ? "pointer" : "default",
-                              fontSize: "12px",
-                              fontWeight: l.isEdited ? "600" : "normal",
-                              transition: "all 0.2s ease",
-                              minWidth: "100px",
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              l.isEdited && openHistory(l);
-                            }}
-                            disabled={!l.isEdited}
-                            title={
-                              l.isEdited
-                                ? "Click to view edit history"
-                                : "No edits made"
-                            }
-                          >
-                            {l.isEdited && l.updated_at
-                              ? new Date(l.updated_at).toLocaleDateString() +
-                                " " +
-                                new Date(l.updated_at).toLocaleTimeString([], {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })
-                              : "Never edited"}
-                          </button>
-                        </td>
-                      </tr>
+            ) : isMobile ? (
+              /* Mobile Card View */
+              <div className="cards-container">
+                {filteredLetters.map((l, index) => (
+                  <div key={l.LT_id || index} className="letter-card">
+                    <div className="card-header">
+                      <div className="card-title-section">
+                        <h4 className="letter-subject">
+                          {l.letter_subject || "No Subject"}
+                        </h4>
+                        <span
+                          className={`status-badge ${statusClass(l.status)}`}
+                        >
+                          {formatStatus(l.status)}
+                        </span>
+                      </div>
+                      <div className="letter-number">
+                        #{l.letter_number || "N/A"}
+                      </div>
+                    </div>
 
-                      {expandedRow === index && (
-                        <tr>
-                          <td colSpan="10">
-                            <div
-                              style={{
-                                border: "1px solid #dce3ed",
-                                borderRadius: "6px",
-                                marginTop: "6px",
-                                padding: "12px 16px",
-                                fontSize: "13px",
-                                lineHeight: "1.6",
-                                color: "#333",
-                                width: "100%",
+                    <div className="card-content">
+                      <div className="card-row">
+                        <span className="label">Dispatch Date:</span>
+                        <span className="value">
+                          {l.date_of_dispatch || "-"}
+                        </span>
+                      </div>
+                      <div className="card-row">
+                        <span className="label">Letter Date:</span>
+                        <span className="value">{l.letter_date || "-"}</span>
+                      </div>
+                      <div className="card-row">
+                        <span className="label">Assigned To:</span>
+                        <div className="assigned-users">
+                          {l.assigned_to_names &&
+                          l.assigned_to_names.length > 0 ? (
+                            l.assigned_to_names.map((name, i) => (
+                              <span key={i} className="user-tag">
+                                {name}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="value">-</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="card-row">
+                        <span className="label">Current Stage:</span>
+                        <span className="value">{l.current_stage || "-"}</span>
+                      </div>
+                      {l.description && (
+                        <div className="card-row">
+                          <span className="label">Description:</span>
+                          <span className="value description-text">
+                            {l.description}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="card-footer">
+                      <div className="card-actions">
+                        {canUserEditLetter(l) ? (
+                          <>
+                            <button
+                              className="iconcon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const originalIndex = letters.findIndex(
+                                  (letter) => letter.LT_id === l.LT_id
+                                );
+                                handleEdit(originalIndex);
                               }}
+                              title="Edit"
                             >
-                              <p>
-                                <strong>Assigned By:</strong>{" "}
-                                {l.assigned_by_name || "-"}
-                              </p>
-                              <p>
-                                <strong>Assigned To:</strong>{" "}
-                                {l.assigned_to_name || "-"}
-                              </p>
-                              <p
-                                style={{
-                                  fontStyle: "italic",
-                                  color: l.comment ? "#555" : "#aaa",
-                                }}
-                              >
-                                <strong
-                                  style={{
-                                    fontStyle: "normal",
-                                    color: "#333",
-                                  }}
-                                >
-                                  Comments:
-                                </strong>{" "}
-                                {l.comment || "No comments"}
-                              </p>
+                              <Editic />
+                            </button>
+                            <button
+                              className="iconcon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(l.LT_id);
+                              }}
+                              title="Move to Bin"
+                            >
+                              <Deleteic />
+                            </button>
+                          </>
+                        ) : (
+                          <span className="no-permission">Not authorized</span>
+                        )}
+                      </div>
+                      <div className="card-meta">
+                        <button
+                          className={`history-btn-mobile ${
+                            l.isEdited ? "has-history" : "no-history"
+                          }`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            l.isEdited && openHistory(l);
+                          }}
+                          disabled={!l.isEdited}
+                        >
+                          {l.isEdited ? "View History" : "No edits"}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Expanded Details */}
+                    {expandedRow === index && (
+                      <div className="card-expanded">
+                        <div className="expanded-section">
+                          <strong>Assigned By:</strong>{" "}
+                          {l.assigned_by_name || "-"}
+                        </div>
+                        <div className="expanded-section">
+                          <strong>Comments:</strong>
+                          <span
+                            className={l.comment ? "has-comment" : "no-comment"}
+                          >
+                            {l.comment || "No comments"}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              /* Desktop Table View */
+              <div className="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Sl No</th>
+                      <th>Date of Dispatch</th>
+                      <th>Letter Subject</th>
+                      <th>Letter No</th>
+                      <th>Description</th>
+                      <th>Assigned To</th>
+                      <th>Letter Date</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                      <th>Last Updated</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredLetters.map((l, index) => (
+                      <React.Fragment key={l.LT_id || index}>
+                        <tr
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            toggleRow(index);
+                          }}
+                          className="letter-row"
+                        >
+                          <td>{index + 1}</td>
+                          <td>{l.date_of_dispatch || "-"}</td>
+                          <td className="subject-cell">
+                            {l.letter_subject || "-"}
+                          </td>
+                          <td>{l.letter_number || "-"}</td>
+                          <td className="muted description-cell">
+                            {l.description || "-"}
+                          </td>
+                          <td>
+                            <div className="assigned-users">
+                              {l.assigned_to_names &&
+                              l.assigned_to_names.length > 0
+                                ? l.assigned_to_names.map((name, i) => (
+                                    <span key={i} className="user-tag">
+                                      {name}
+                                    </span>
+                                  ))
+                                : "-"}
                             </div>
                           </td>
+                          <td>{l.letter_date || "-"}</td>
+                          <td>
+                            <span
+                              className={`status-badge ${statusClass(
+                                l.status
+                              )}`}
+                            >
+                              {formatStatus(l.status)}
+                            </span>
+                          </td>
+                          <td className="actions">
+                            {canUserEditLetter(l) ? (
+                              <>
+                                <button
+                                  className="iconcon"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const originalIndex = letters.findIndex(
+                                      (letter) => letter.LT_id === l.LT_id
+                                    );
+                                    handleEdit(originalIndex);
+                                  }}
+                                  title="Edit"
+                                >
+                                  <Editic />
+                                </button>
+                                <button
+                                  className="iconcon"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDelete(l.LT_id);
+                                  }}
+                                  title="Move to Bin"
+                                >
+                                  <Deleteic />
+                                </button>
+                              </>
+                            ) : (
+                              <span className="no-permission">
+                                Not authorized
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            <button
+                              className={`history-btn ${
+                                l.isEdited ? "has-history" : "no-history"
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                l.isEdited && openHistory(l);
+                              }}
+                              disabled={!l.isEdited}
+                              title={
+                                l.isEdited
+                                  ? "Click to view edit history"
+                                  : "No edits made"
+                              }
+                            >
+                              {l.isEdited && l.updated_at
+                                ? new Date(l.updated_at).toLocaleDateString() +
+                                  " "
+                                : // +
+                                  // new Date(l.updated_at).toLocaleTimeString(
+                                  //   [],
+                                  //   {
+                                  //     hour: "2-digit",
+                                  //     minute: "2-digit",
+                                  //   }
+                                  // )
+                                  "Never edited"}
+                            </button>
+                          </td>
                         </tr>
-                      )}
-                    </React.Fragment>
-                  ))}
-                </tbody>
-              </table>
+
+                        {expandedRow === index && (
+                          <tr className="expanded-row">
+                            <td colSpan="10">
+                              <div className="expanded-details">
+                                <div className="detail-section">
+                                  <strong>Assigned By:</strong>{" "}
+                                  {l.assigned_by_name || "-"}
+                                </div>
+                                <div className="detail-section">
+                                  <strong>Current Stage:</strong>{" "}
+                                  {l.current_stage || "-"}
+                                </div>
+                                <div className="detail-section">
+                                  <strong>Comments:</strong>
+                                  <span
+                                    className={
+                                      l.comment ? "has-comment" : "no-comment"
+                                    }
+                                  >
+                                    {l.comment || "No comments"}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </>
         ) : (
@@ -1391,57 +1427,146 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
             {/* Bin Section */}
             <h3>Bin ({filteredDeletedLetters.length})</h3>
             {filteredDeletedLetters.length === 0 ? (
-              <div
-                style={{ textAlign: "center", padding: "20px", color: "#666" }}
-              >
+              <div className="no-data">
                 {filter
                   ? `No deleted letters found matching "${filter}"`
                   : "Bin is empty."}
               </div>
-            ) : (
-              <table>
-                <thead>
-                  <tr>
-                    <th>Sl No</th>
-                    <th>Date of Dispatch</th>
-                    <th>Letter Subject</th>
-                    <th>Letter No</th>
-                    <th>Description</th>
-                    <th>Assigned To</th>
-                    <th>Assigned By</th>
-                    <th>Letter Date</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredDeletedLetters.map((l, index) => (
-                    <tr key={l.LT_id || index}>
-                      <td>{index + 1}</td>
-                      <td>{l.date_of_dispatch || "-"}</td>
-                      <td>{l.letter_subject || "-"}</td>
-                      <td>{l.letter_number || "-"}</td>
-                      <td className="muted">{l.description || "-"}</td>
-                      <td>{l.assigned_to_name || "-"}</td>
-                      <td>{l.assigned_by_name || "-"}</td>
-                      <td>{l.letter_date || "-"}</td>
-                      <td>
-                        <span className={`status ${statusClass(l.status)}`}>
+            ) : isMobile ? (
+              /* Mobile Card View for Bin */
+              <div className="cards-container">
+                {filteredDeletedLetters.map((l, index) => (
+                  <div
+                    key={l.LT_id || index}
+                    className="letter-card deleted-card"
+                  >
+                    <div className="card-header">
+                      <div className="card-title-section">
+                        <h4 className="letter-subject">
+                          {l.letter_subject || "No Subject"}
+                        </h4>
+                        <span
+                          className={`status-badge ${statusClass(l.status)}`}
+                        >
                           {formatStatus(l.status)}
                         </span>
-                      </td>
-                      <td className="actions">
-                        <button
-                          className="iconcon"
-                          onClick={() => handlePermanentDelete(index, l)}
-                        >
-                          <Deleteic />
-                        </button>
-                      </td>
+                      </div>
+                      <div className="deleted-badge">Deleted</div>
+                    </div>
+
+                    <div className="card-content">
+                      <div className="card-row">
+                        <span className="label">Letter Number:</span>
+                        <span className="value">
+                          #{l.letter_number || "N/A"}
+                        </span>
+                      </div>
+                      <div className="card-row">
+                        <span className="label">Dispatch Date:</span>
+                        <span className="value">
+                          {l.date_of_dispatch || "-"}
+                        </span>
+                      </div>
+                      <div className="card-row">
+                        <span className="label">Letter Date:</span>
+                        <span className="value">{l.letter_date || "-"}</span>
+                      </div>
+                      <div className="card-row">
+                        <span className="label">Assigned To:</span>
+                        <div className="assigned-users">
+                          {l.assigned_to_names &&
+                          l.assigned_to_names.length > 0 ? (
+                            l.assigned_to_names.map((name, i) => (
+                              <span key={i} className="user-tag">
+                                {name}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="value">-</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="card-row">
+                        <span className="label">Assigned By:</span>
+                        <span className="value">
+                          {l.assigned_by_name || "-"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="card-footer">
+                      <button
+                        className="danger-btn"
+                        onClick={() => handlePermanentDelete(index, l)}
+                        title="Permanently Delete"
+                      >
+                        Delete Permanently
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              /* Desktop Table View for Bin */
+              <div className="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Sl No</th>
+                      <th>Date of Dispatch</th>
+                      <th>Letter Subject</th>
+                      <th>Letter No</th>
+                      <th>Description</th>
+                      <th>Assigned To</th>
+                      <th>Assigned By</th>
+                      <th>Letter Date</th>
+                      <th>Status</th>
+                      <th>Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filteredDeletedLetters.map((l, index) => (
+                      <tr key={l.LT_id || index}>
+                        <td>{index + 1}</td>
+                        <td>{l.date_of_dispatch || "-"}</td>
+                        <td>{l.letter_subject || "-"}</td>
+                        <td>{l.letter_number || "-"}</td>
+                        <td className="muted">{l.description || "-"}</td>
+                        <td>
+                          <div className="assigned-users">
+                            {l.assigned_to_names &&
+                            l.assigned_to_names.length > 0
+                              ? l.assigned_to_names.map((name, i) => (
+                                  <span key={i} className="user-tag">
+                                    {name}
+                                  </span>
+                                ))
+                              : "-"}
+                          </div>
+                        </td>
+                        <td>{l.assigned_by_name || "-"}</td>
+                        <td>{l.letter_date || "-"}</td>
+                        <td>
+                          <span
+                            className={`status-badge ${statusClass(l.status)}`}
+                          >
+                            {formatStatus(l.status)}
+                          </span>
+                        </td>
+                        <td className="actions">
+                          <button
+                            className="iconcon danger"
+                            onClick={() => handlePermanentDelete(index, l)}
+                            title="Permanently Delete"
+                          >
+                            <Deleteic />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </>
         )}
