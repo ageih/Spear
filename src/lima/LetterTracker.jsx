@@ -1,16 +1,22 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import "./LetterTracker.css";
 import axios from "axios";
 import { gapi } from "./GlobalAPI";
-import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
 import { useUserSession } from "../montok/component/useUserSession";
 import { useUser } from "../LevelContext";
 import { Deleteic, Editic } from "../montok/component/UseIcons";
+import Toast from "../montok/component/Toast";
 
 const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
   const contextuser = useUser();
   const valueuser = contextuser?.levelUser;
+
+  // Toast state
+  const [toast, setToast] = useState({
+    show: false,
+    message: "",
+    type: "info",
+  });
 
   // Use the new user session hook
   const {
@@ -19,12 +25,15 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
     error: userError,
   } = useUserSession();
 
+  console.log("🚀 LetterTracker userData:", userData, "=================");
+
   const [letters, setLetters] = useState([]);
   const [deletedLetters, setDeletedLetters] = useState([]);
   const [filter, setFilter] = useState("");
   const [formVisible, setFormVisible] = useState(false);
   const [formData, setFormData] = useState({
     assigned_to: [], // Changed to array for multiple users
+    document: null, // Add document field
   });
   const [previousFormData, setPreviousFormData] = useState({});
   const [editIndex, setEditIndex] = useState(null);
@@ -39,6 +48,24 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
 
   const [expandedRow, setExpandedRow] = useState(null);
   const [isloading, setIsLoading] = useState(true);
+
+  // New state for chat functionality inside edit form
+  const [chatMessages, setChatMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // File upload state
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [filePreview, setFilePreview] = useState(null);
+  const [fileInputKey, setFileInputKey] = useState(Date.now());
+
+  // Create ref for file input
+  const fileInputRef = useRef(null);
+
+  // Close toast function
+  const closeToast = () => {
+    setToast((prev) => ({ ...prev, show: false }));
+  };
 
   // Effect to automatically set filter when filterToPage changes
   useEffect(() => {
@@ -148,6 +175,99 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
     setExpandedRow(expandedRow === index ? null : index);
   };
 
+  // File handling functions
+  const handleFileSelect = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      setSelectedFile(file);
+      setFormData((prev) => ({ ...prev, document: file }));
+
+      // Create preview for images
+      if (file.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onload = (e) => setFilePreview(e.target.result);
+        reader.readAsDataURL(file);
+      } else {
+        setFilePreview(null);
+      }
+    }
+  };
+
+  const clearFile = () => {
+    setSelectedFile(null);
+    setFilePreview(null);
+    setFormData((prev) => ({ ...prev, document: null }));
+    setFileInputKey(Date.now());
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const downloadFile = async (fileUrl, fileName) => {
+    try {
+      // For blob URLs (local files), use the existing method
+      if (fileUrl.startsWith("blob:")) {
+        const link = document.createElement("a");
+        link.href = fileUrl;
+        link.download = fileName || "document";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        return;
+      }
+
+      // For external URLs, use fetch to get the file as blob
+      const response = await fetch(fileUrl);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = fileName || getFileNameFromUrl(fileUrl) || "document";
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+
+      // Clean up
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+      }, 100);
+    } catch (error) {
+      console.error("Download failed:", error);
+      setToast({
+        message: `Download failed: ${
+          error.message || "Unable to download file"
+        }. Opening in new tab instead.`,
+        type: "warning",
+        show: true,
+      });
+      // Fallback: open in new tab if download fails
+      window.open(fileUrl, "_blank");
+    }
+  };
+
+  // Helper function to extract filename from URL
+  const getFileNameFromUrl = (url) => {
+    try {
+      const urlObj = new URL(url);
+      const pathname = urlObj.pathname;
+      return pathname.substring(pathname.lastIndexOf("/") + 1);
+    } catch {
+      return "document";
+    }
+  };
+
+  const viewFile = (fileUrl) => {
+    const newWindow = window.open("", "_blank");
+    newWindow.location.href = fileUrl;
+  };
+
   // Initialize form with user data when available
   useEffect(() => {
     if (userData?.user?.user_id) {
@@ -156,6 +276,7 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
         assigned_by: userData.user.user_id,
         user_id: userData.user.user_id,
         assigned_to: [], // Initialize as empty array
+        document: null,
       }));
     }
   }, [userData]);
@@ -214,15 +335,132 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
     }));
   };
 
+  // Fetch chat messages for a letter
+  const fetchChatMessages = async (letterId) => {
+    try {
+      if (!userData?.user?.user_id) return;
+
+      const response = await axios.get(
+        `${gapi}/letter-chat?letter_id=${letterId}&user_id=${userData.user.user_id}`
+      );
+
+      let messages = [];
+      if (Array.isArray(response.data)) {
+        messages = response.data;
+      } else if (response.data.data && Array.isArray(response.data.data)) {
+        messages = response.data.data;
+      } else if (
+        response.data.response &&
+        Array.isArray(response.data.response)
+      ) {
+        messages = response.data.response;
+      }
+
+      setChatMessages(messages);
+    } catch (error) {
+      console.error("❌ Error fetching chat messages:", error);
+      setChatMessages([]);
+      setToast({
+        message: `Error loading chat messages: ${
+          error.response?.data?.errorMessage || "Internal Server Error"
+        }`,
+        type: "error",
+        show: true,
+      });
+    }
+  };
+
+  // Send a new message
+  const sendMessage = async () => {
+    console.log("✉️ Sending message:", newMessage);
+    if (!newMessage.trim()) {
+      setToast({
+        message: "Please enter a message",
+        type: "warning",
+        show: true,
+      });
+      return;
+    }
+
+    if (!formData.LT_id || !userData?.user?.user_id) {
+      setToast({
+        message: "Unable to send message. Missing required data.",
+        type: "error",
+        show: true,
+      });
+      return;
+    }
+
+    try {
+      const messageData = {
+        letter_id: formData.LT_id,
+        user_id: userData.user.user_id,
+        user_name: getUserNameById(userData.user.user_id),
+        message: newMessage.trim(),
+        timestamp: new Date().toISOString(),
+      };
+
+      const response = await axios.post(`${gapi}/letter-chat`, messageData);
+
+      if (response.data.success) {
+        // Add the new message to the chat
+        const newMessageObj = {
+          ...messageData,
+          message_id: response.data.message_id || Date.now(),
+        };
+
+        setChatMessages((prev) => [...prev, newMessageObj]);
+        setNewMessage("");
+
+        setToast({
+          message: "Message sent successfully",
+          type: "success",
+          show: true,
+        });
+
+        // Update the letter's last activity
+        setLetters((prev) =>
+          prev.map((letter) =>
+            letter.LT_id === formData.LT_id
+              ? { ...letter, updated_at: new Date().toISOString() }
+              : letter
+          )
+        );
+      } else {
+        setToast({
+          message: `Failed to send message: ${
+            response.data.error || "Unknown error"
+          }`,
+          type: "error",
+          show: true,
+        });
+      }
+    } catch (error) {
+      console.error("❌ Error sending message:", error);
+      setToast({
+        message: `Error sending message: ${
+          error.response?.data?.errorMessage || "Internal Server Error"
+        }`,
+        type: "error",
+        show: true,
+      });
+    }
+  };
+
   // Separate function for fetching letters
   const fetchLetters = async () => {
     try {
       if (!userData?.user?.user_id) {
+        setToast({
+          message: "User not authenticated. Please log in again.",
+          type: "error",
+          show: true,
+        });
         return;
       }
 
       setLoading(true);
-      const apiUrl = `${gapi}/LT?user_id=${userData.user.user_id}&deleted=false`;
+      const apiUrl = `${gapi}/LT?user_id=${userData.user.user_id}&deleted=false&user_level=${userData.user.cs_user_level}`;
 
       const response = await axios.get(apiUrl);
 
@@ -261,7 +499,7 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
           status: letter.status,
           assigned_by: letter.assigned_by,
           assigned_by_name: getUserNameById(letter.assigned_by),
-          current_stage: letter.current_stage,
+          // REMOVED: current_stage from display
           created_at: letter.created_at,
           updated_at: letter.updated_at,
           comment: letter.comment,
@@ -269,6 +507,8 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
           deleted: letter.deleted || false,
           isEdited:
             !!letter.updated_at && letter.updated_at !== letter.created_at,
+          document_url: letter.document_url || letter.document || null,
+          document_name: letter.document_name || null,
         };
 
         return mappedLetter;
@@ -284,8 +524,21 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
       });
 
       updateSummaryCounts([...processedLetters, ...letters]);
+
+      setToast({
+        message: `Loaded ${processedLetters.length} letters successfully`,
+        type: "success",
+        show: true,
+      });
     } catch (error) {
       console.error("❌ Error fetching letters:", error);
+      setToast({
+        message: `Error loading letters: ${
+          error.response?.data?.errorMessage || "Internal Server Error"
+        }`,
+        type: "error",
+        show: true,
+      });
     } finally {
       setLoading(false);
     }
@@ -334,13 +587,15 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
           status: letter.status,
           assigned_by: letter.assigned_by,
           assigned_by_name: getUserNameById(letter.assigned_by),
-          current_stage: letter.current_stage,
+          // REMOVED: current_stage from display
           created_at: letter.created_at,
           updated_at: letter.updated_at,
           user_id: letter.user_id,
           deleted: letter.deleted || false,
           isEdited:
             !!letter.updated_at && letter.updated_at !== letter.created_at,
+          document_url: letter.document_url || letter.document || null,
+          document_name: letter.document_name || null,
         };
 
         return mappedLetter;
@@ -355,6 +610,13 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
       });
     } catch (error) {
       console.error("❌ Error fetching deleted letters:", error);
+      setToast({
+        message: `Error loading deleted letters: ${
+          error.response?.data?.errorMessage || "Internal Server Error"
+        }`,
+        type: "error",
+        show: true,
+      });
     }
   };
 
@@ -379,8 +641,20 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
         `${gapi}/fetch-history?user_id=${userData.user.user_id}&record_id=${data.LT_id}`
       );
       setHistory(response.data.response || response.data);
+      setToast({
+        message: "History loaded successfully",
+        type: "info",
+        show: true,
+      });
     } catch (e) {
       console.error("❌ Error fetching history:", e);
+      setToast({
+        message: `Error loading history: ${
+          e.response?.data?.errorMessage || "Internal Server Error"
+        }`,
+        type: "error",
+        show: true,
+      });
     }
   };
 
@@ -412,25 +686,77 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
   // Handle Save (Add / Edit)
   const handleSave = async () => {
     if (!userData?.user?.user_id) {
-      alert("User not authenticated. Please log in again.");
+      setToast({
+        message: "User not authenticated. Please log in again.",
+        type: "error",
+        show: true,
+      });
       return;
+    }
+
+    // Validate required fields
+    const fieldValidations = [
+      {
+        field: "date_of_dispatch",
+        label: "Date of Dispatch",
+        value: formData.date_of_dispatch,
+      },
+      {
+        field: "letter_subject",
+        label: "Letter Subject",
+        value: formData.letter_subject?.trim(),
+      },
+      {
+        field: "letter_number",
+        label: "Letter Number",
+        value: formData.letter_number?.trim(),
+      },
+      {
+        field: "letter_date",
+        label: "Letter Date",
+        value: formData.letter_date,
+      },
+      { field: "status", label: "Status", value: formData.status },
+    ];
+
+    for (const validation of fieldValidations) {
+      if (!validation.value) {
+        setToast({
+          message: `Please enter ${validation.label}`,
+          type: "warning",
+          show: true,
+        });
+        return;
+      }
     }
 
     // Validate assigned_to
     if (!formData.assigned_to || formData.assigned_to.length === 0) {
-      alert("Please assign at least one user.");
+      setToast({
+        message: "Please assign at least one user",
+        type: "warning",
+        show: true,
+      });
       return;
     }
 
-    const confirmSave = window.confirm("Do you want to save changes?");
-    if (!confirmSave) return;
+    setIsSubmitting(true);
 
     try {
+      // Create FormData for file upload
+      const submitData = new FormData();
+
+      // Add file if exists
+      if (formData.document) {
+        submitData.append("document", formData.document);
+      }
+
+      console.log("📄 Submitting form data:", formData);
       if (editIndex !== null) {
         // Compute changes
         const changes = {};
         Object.keys(formData).forEach((key) => {
-          if (formData[key] !== previousFormData[key]) {
+          if (formData[key] !== previousFormData[key] && key !== "document") {
             changes[key] = {
               old: previousFormData[key] || "",
               new: formData[key] || "",
@@ -438,27 +764,41 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
           }
         });
 
+        // Handle file change in edits
+        if (formData.document !== previousFormData.document) {
+          changes.document = {
+            old: previousFormData.document
+              ? previousFormData.document.name
+              : "No file",
+            new: formData.document ? formData.document.name : "No file",
+          };
+        }
+
         const structuredData = {
           date_of_dispatch: formData.date_of_dispatch,
           letter_subject: formData.letter_subject,
           letter_number: formData.letter_number,
           description: formData.description,
-          assigned_to: formData.assigned_to, // Now an array
+          assigned_to: formData.assigned_to,
           letter_date: formData.letter_date,
           status: formData.status,
           assigned_by: userData.user.user_id,
-          current_stage: formData.current_stage,
+          current_stage: "pending", // ALWAYS submit "pending" as current_stage
           user_id: userData.user.user_id,
           comment: formData.comment || "",
         };
 
+        submitData.append("updates", JSON.stringify(structuredData));
+        submitData.append("LT_id", formData.LT_id);
+        submitData.append("edit_changes", JSON.stringify(changes));
+        submitData.append("edit_comment", formData.comment || "");
+
         console.log("💾 Updating letter:", structuredData);
 
-        await axios.put(`${gapi}/LT`, {
-          updates: structuredData,
-          LT_id: formData.LT_id,
-          edit_changes: changes,
-          edit_comment: formData.comment || "",
+        const response = await axios.put(`${gapi}/LT`, submitData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
         });
 
         // Update local state without fetching again
@@ -474,12 +814,22 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
                   isEdited: true,
                   updated_at: new Date().toISOString(),
                   user_id: userData.user.user_id,
+                  document_url: formData.document
+                    ? URL.createObjectURL(formData.document)
+                    : formData.document_url,
+                  document_name: formData.document
+                    ? formData.document.name
+                    : formData.document_name,
                 }
               : letter
           )
         );
 
-        alert("Letter updated successfully!");
+        setToast({
+          message: "Letter updated successfully!",
+          type: "success",
+          show: true,
+        });
       } else {
         console.log("🆕 Adding new letter:", formData);
 
@@ -488,17 +838,21 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
           letter_subject: formData.letter_subject,
           letter_number: formData.letter_number,
           description: formData.description,
-          assigned_to: formData.assigned_to, // Now an array
+          assigned_to: formData.assigned_to,
           letter_date: formData.letter_date,
           status: formData.status,
           assigned_by: userData.user.user_id,
-          current_stage: formData.current_stage,
+          current_stage: "pending", // ALWAYS submit "pending" as current_stage
           user_id: userData.user.user_id,
         };
 
-        const response = await axios.post(`${gapi}/LT`, {
-          data: newLetterData,
-          user_id: userData.user.user_id,
+        submitData.append("data", JSON.stringify(newLetterData));
+        submitData.append("user_id", userData.user.user_id);
+
+        const response = await axios.post(`${gapi}/LT`, submitData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
         });
 
         console.log("✅ New letter response:", response.data);
@@ -522,50 +876,109 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
           status: formData.status,
           assigned_by: userData.user.user_id,
           assigned_by_name: getUserNameById(userData.user.user_id),
-          current_stage: formData.current_stage,
+          // Note: current_stage not included in display object
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           user_id: userData.user.user_id,
           deleted: false,
           isEdited: false,
+          document_url: formData.document
+            ? URL.createObjectURL(formData.document)
+            : null,
+          document_name: formData.document ? formData.document.name : null,
         };
 
         // Add new letter to the top without fetching again
         setLetters((prev) => [mappedNewLetter, ...prev]);
         updateSummaryCounts([mappedNewLetter, ...letters]);
+
+        setToast({
+          message: "Letter added successfully!",
+          type: "success",
+          show: true,
+        });
       }
 
       setFormVisible(false);
-      setFormData({ assigned_to: [] });
+      setFormData({ assigned_to: [], document: null });
+      setSelectedFile(null);
+      setFilePreview(null);
+      setFileInputKey(Date.now());
       setEditIndex(null);
+      setChatMessages([]);
+      setNewMessage("");
     } catch (error) {
       console.error("❌ Error saving letter:", error);
-      alert("Could not save the letter!");
+      setToast({
+        message: `Error saving letter: ${
+          error.response?.data?.errorMessage || "Internal Server Error"
+        }`,
+        type: "error",
+        show: true,
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  // Edit letter
-  const handleEdit = (index) => {
+  // Edit letter - Only allowed for assigner
+  const handleEdit = async (index) => {
     const letter = letters[index];
+    const currentUserId = userData?.user?.user_id;
+
+    // Check if current user is the assigner or assigned user
+    const assignedTo = Array.isArray(letter.assigned_to)
+      ? letter.assigned_to
+      : [letter.assigned_to];
+
+    const canAccess =
+      currentUserId === letter.assigned_by ||
+      assignedTo.includes(currentUserId);
+
+    if (!canAccess) {
+      setToast({
+        message: "You don't have permission to access this letter.",
+        type: "error",
+        show: true,
+      });
+      return;
+    }
+
     console.log("✏️ Editing letter:", letter);
     setFormData({
       ...letter,
-      assigned_to: letter.assigned_to || [], // Ensure it's an array
+      assigned_to: letter.assigned_to || [],
+      document: null, // Reset file on edit
     });
     setPreviousFormData(letter);
     setFormVisible(true);
     setEditIndex(index);
+    setSelectedFile(null);
+    setFilePreview(null);
+    setFileInputKey(Date.now());
+
+    // Fetch chat messages when opening edit
+    await fetchChatMessages(letter.LT_id);
   };
 
   // Soft Delete
   const handleDelete = async (LT_id) => {
+    console.log("🗑️ Deleting letter with LT_id:", LT_id);
     if (!userData?.user?.user_id) {
-      alert("User not authenticated. Please log in again.");
+      setToast({
+        message: "User not authenticated. Please log in again.",
+        type: "error",
+        show: true,
+      });
       return;
     }
 
     if (!LT_id) {
-      alert("LC id invalid!");
+      setToast({
+        message: "Letter ID is invalid!",
+        type: "error",
+        show: true,
+      });
       return;
     }
 
@@ -573,7 +986,9 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
     if (!confirmDelete) return;
 
     try {
-      await axios.delete(
+      console.log("🚨 Proceeding with deletion...");
+
+      const response = await axios.delete(
         `${gapi}/LT?user_id=${userData.user.user_id}&LT_id=${LT_id}&permanent=false`
       );
 
@@ -586,17 +1001,32 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
           : prev;
       });
 
-      alert("Letter moved to Bin!");
+      setToast({
+        message: "Letter moved to Bin successfully!",
+        type: "success",
+        show: true,
+      });
     } catch (error) {
       console.error("Error while moving letter to Bin:", error);
-      alert("Could not move letter to Bin!");
+      setToast({
+        message: `Error moving letter to Bin: ${
+          error.response?.data?.errorMessage || "Internal Server Error"
+        }`,
+        type: "error",
+        show: true,
+      });
     }
   };
 
   // Permanent Delete
   const handlePermanentDelete = async (index, letterData) => {
+    console.log("🗑️ Permanently deleting letter with LT_id:", letterData.LT_id);
     if (!userData?.user?.user_id) {
-      alert("User not authenticated. Please log in again.");
+      setToast({
+        message: "User not authenticated. Please log in again.",
+        type: "error",
+        show: true,
+      });
       return;
     }
 
@@ -606,16 +1036,28 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
     if (!confirmPermanent) return;
 
     try {
-      await axios.delete(
+      console.log("🚨 Proceeding with permanent deletion...");
+      const response = await axios.delete(
         `${gapi}/LT?user_id=${userData.user.user_id}&LT_id=${letterData.LT_id}&permanent=true`
       );
 
       // Update local state without fetching again
       setDeletedLetters((prev) => prev.filter((_, i) => i !== index));
-      alert("Letter permanently deleted!");
+
+      setToast({
+        message: "Letter permanently deleted successfully!",
+        type: "success",
+        show: true,
+      });
     } catch (error) {
       console.error("Error deleting letter:", error);
-      alert("Could not delete the letter from database!");
+      setToast({
+        message: `Error deleting letter: ${
+          error.response?.data?.errorMessage || "Internal Server Error"
+        }`,
+        type: "error",
+        show: true,
+      });
     }
   };
 
@@ -668,6 +1110,32 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
     );
   };
 
+  // Check if user can edit details (only assigner)
+  const canUserEditDetails = (letter) => {
+    if (!letter || !userData?.user?.user_id) return false;
+    return userData.user.user_id === letter.assigned_by;
+  };
+
+  // Check if user can comment (assigner or assigned users)
+  const canUserComment = (letter) => {
+    if (!letter || !userData?.user?.user_id) return false;
+
+    const currentUserId = userData.user.user_id;
+    const assignedTo = Array.isArray(letter.assigned_to)
+      ? letter.assigned_to
+      : [letter.assigned_to];
+
+    return (
+      currentUserId === letter.assigned_by || assignedTo.includes(currentUserId)
+    );
+  };
+
+  // Check if user is the creator
+  const isUserCreator = (letter) => {
+    if (!letter || !userData?.user?.user_id) return false;
+    return userData.user.user_id === letter.assigned_by;
+  };
+
   // Filtered data based on current filter
   const filteredLetters = letters
     .filter((l) => !l.deleted)
@@ -696,8 +1164,8 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
         (l.assigned_to_names || []).some((name) =>
           name.toLowerCase().includes(searchTerm)
         ) ||
-        (l.status || "").toLowerCase().includes(searchTerm) ||
-        (l.current_stage || "").toLowerCase().includes(searchTerm)
+        (l.status || "").toLowerCase().includes(searchTerm)
+        // REMOVED: current_stage from filter
       );
     });
 
@@ -769,6 +1237,16 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
 
   return (
     <>
+      {/* Toast Component */}
+      {toast.show && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          duration={3000}
+          onClose={closeToast}
+        />
+      )}
+
       <div className="card">
         <h1>Letter Tracker {showBin && " > Bin"}</h1>
 
@@ -907,17 +1385,22 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
           <button className="ghost small" onClick={() => setFilter("")}>
             Clear
           </button>
-          {!showBin && (
+          {!showBin && !formVisible && (
             <button
               className="small"
               onClick={(e) => {
                 e.stopPropagation();
-                setFormVisible(!formVisible);
-                setFormData({ assigned_to: [] });
+                setFormVisible(true);
+                setFormData({ assigned_to: [], document: null });
                 setEditIndex(null);
+                setChatMessages([]);
+                setNewMessage("");
+                setSelectedFile(null);
+                setFilePreview(null);
+                setFileInputKey(Date.now());
               }}
             >
-              {formVisible ? "Close form" : "Add new"}
+              Add new
             </button>
           )}
           <button className="small" onClick={() => setShowBin(!showBin)}>
@@ -925,198 +1408,443 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
           </button>
         </div>
 
-        {/* Enhanced Form with Labels and Multi-User Selection */}
+        {/* Enhanced Form with Conditional Layout */}
         {formVisible && !showBin && (
-          <div className="formWrap enhanced-form">
-            <h3>{editIndex !== null ? "Edit Letter" : "Add New Letter"}</h3>
-
-            <div className="form-grid">
-              <div className="form-field">
-                <label>
-                  Date of Dispatch: <span className="required">*</span>
-                </label>
-                <DatePicker
-                  selected={
-                    formData.date_of_dispatch
-                      ? new Date(formData.date_of_dispatch)
-                      : null
-                  }
-                  onChange={(date) =>
-                    setFormData({
-                      ...formData,
-                      date_of_dispatch: date.toISOString().split("T")[0],
-                    })
-                  }
-                  dateFormat="yyyy-MM-dd"
-                  placeholderText="Select date"
-                  className="form-input"
-                />
-              </div>
-
-              <div className="form-field">
-                <label>
-                  Letter Subject: <span className="required">*</span>
-                </label>
-                <input
-                  placeholder="Enter letter subject"
-                  value={formData.letter_subject || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, letter_subject: e.target.value })
-                  }
-                  className="form-input"
-                />
-              </div>
-
-              <div className="form-field">
-                <label>
-                  Letter Number: <span className="required">*</span>
-                </label>
-                <input
-                  placeholder="Enter letter number"
-                  value={formData.letter_number || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, letter_number: e.target.value })
-                  }
-                  className="form-input"
-                />
-              </div>
-
-              <div className="form-field">
-                <label>Current Stage:</label>
-                <input
-                  placeholder="Enter current stage"
-                  value={formData.current_stage || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, current_stage: e.target.value })
-                  }
-                  className="form-input"
-                />
-              </div>
-
-              <div className="form-field">
-                <label>
-                  Letter Date: <span className="required">*</span>
-                </label>
-                <DatePicker
-                  selected={
-                    formData.letter_date ? new Date(formData.letter_date) : null
-                  }
-                  onChange={(date) =>
-                    setFormData({
-                      ...formData,
-                      letter_date: date.toISOString().split("T")[0],
-                    })
-                  }
-                  dateFormat="yyyy-MM-dd"
-                  placeholderText="Select date"
-                  className="form-input"
-                />
-              </div>
-
-              <div className="form-field">
-                <label>
-                  Status: <span className="required">*</span>
-                </label>
-                <select
-                  value={formData.status || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, status: e.target.value })
-                  }
-                  className="form-input"
+          <div
+            className={`formWrap enhanced-form ${
+              editIndex === null ? "full-width-form" : "split-form"
+            }`}
+          >
+            <div className="form-header">
+              <h3>
+                {editIndex !== null
+                  ? `📋 ${formData.letter_subject || "Untitled"}`
+                  : "➕ Add New Letter"}
+                <button
+                  className="close-form-btn"
+                  onClick={() => {
+                    setFormVisible(false);
+                    setFormData({ assigned_to: [], document: null });
+                    setEditIndex(null);
+                    setChatMessages([]);
+                    setNewMessage("");
+                    setSelectedFile(null);
+                    setFilePreview(null);
+                    setFileInputKey(Date.now());
+                  }}
+                  title="Close form"
                 >
-                  <option value="">Select status</option>
-                  <option value="Important">Important</option>
-                  <option value="Pending">Pending</option>
-                  <option value="Critical">Critical</option>
-                  <option value="in progress">In Progress</option>
-                  <option value="completed">Completed</option>
-                  <option value="dispatched">Dispatched</option>
-                  <option value="open">Open</option>
-                  <option value="closed">Closed</option>
-                </select>
-              </div>
+                  ×
+                </button>
+              </h3>
             </div>
 
-            {/* Multi-User Assignment */}
-            <div className="form-field full-width">
-              <label>
-                Assigned to: <span className="required">*</span>
-              </label>
-              <div className="user-selection-container">
-                <div className="user-selection-grid">
-                  {allUsers.map((user) => (
-                    <div
-                      key={user.cs_user_id}
-                      className={`user-option ${
-                        formData.assigned_to?.includes(user.cs_user_id)
-                          ? "selected"
-                          : ""
-                      }`}
-                      onClick={() => handleUserSelection(user.cs_user_id)}
+            <div className="form-layout">
+              {/* Letter Details Section - Always visible */}
+              <div className="details-section">
+                <div className="form-grid">
+                  <div className="form-field">
+                    <label>
+                      Date of Dispatch: <span className="required">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.date_of_dispatch || ""}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          date_of_dispatch: e.target.value,
+                        })
+                      }
+                      className="form-input"
+                      disabled={
+                        editIndex !== null && !canUserEditDetails(formData)
+                      }
+                    />
+                  </div>
+
+                  <div className="form-field">
+                    <label>
+                      Letter Subject: <span className="required">*</span>
+                    </label>
+                    <input
+                      placeholder="Enter letter subject"
+                      value={formData.letter_subject || ""}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          letter_subject: e.target.value,
+                        })
+                      }
+                      className="form-input"
+                      disabled={
+                        editIndex !== null && !canUserEditDetails(formData)
+                      }
+                    />
+                  </div>
+
+                  <div className="form-field">
+                    <label>
+                      Letter Number:<span className="required">*</span>
+                    </label>
+                    <input
+                      placeholder="Enter letter number"
+                      value={formData.letter_number || ""}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          letter_number: e.target.value,
+                        })
+                      }
+                      className="form-input"
+                      disabled={
+                        editIndex !== null && !canUserEditDetails(formData)
+                      }
+                    />
+                  </div>
+
+                  {/* REMOVED: Current Stage field from form */}
+
+                  <div className="form-field">
+                    <label>
+                      Letter Date: <span className="required">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.letter_date || ""}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          letter_date: e.target.value,
+                        })
+                      }
+                      className="form-input"
+                      disabled={
+                        editIndex !== null && !canUserEditDetails(formData)
+                      }
+                    />
+                  </div>
+
+                  <div className="form-field">
+                    <label>
+                      Status: <span className="required">*</span>
+                    </label>
+                    <select
+                      value={formData.status || ""}
+                      onChange={(e) =>
+                        setFormData({ ...formData, status: e.target.value })
+                      }
+                      className="form-input"
+                      disabled={
+                        editIndex !== null && !canUserEditDetails(formData)
+                      }
                     >
-                      <div className="user-checkbox">
-                        {formData.assigned_to?.includes(user.cs_user_id) && (
-                          <div className="checkmark">✓</div>
+                      <option value="">Select status</option>
+                      <option value="Important">Important</option>
+                      <option value="Pending">Pending</option>
+                      <option value="Critical">Critical</option>
+                      <option value="in progress">In Progress</option>
+                      <option value="completed">Completed</option>
+                      <option value="dispatched">Dispatched</option>
+                      <option value="open">Open</option>
+                      <option value="closed">Closed</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* File Upload Section */}
+                <div className="form-field full-width">
+                  <label>Document:</label>
+                  <div className="file-upload-container">
+                    {/* Hidden file input */}
+                    <input
+                      key={fileInputKey}
+                      ref={fileInputRef}
+                      type="file"
+                      onChange={handleFileSelect}
+                      accept="*/*"
+                      className="file-input-hidden"
+                      disabled={
+                        editIndex !== null && !canUserEditDetails(formData)
+                      }
+                    />
+
+                    {/* Custom file upload button */}
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="file-upload-btn"
+                      disabled={
+                        editIndex !== null && !canUserEditDetails(formData)
+                      }
+                    >
+                      <span className="file-upload-icon">📎</span>
+                      {selectedFile ? "Change File" : "Choose File"}
+                    </button>
+
+                    {selectedFile && (
+                      <div className="file-preview">
+                        <div className="file-info">
+                          <span className="file-name">{selectedFile.name}</span>
+                          <span className="file-size">
+                            ({(selectedFile.size / 1024).toFixed(2)} KB)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={clearFile}
+                            className="clear-file-btn"
+                          >
+                            ×
+                          </button>
+                        </div>
+
+                        {filePreview && (
+                          <div className="image-preview">
+                            <img
+                              src={filePreview}
+                              alt="Preview"
+                              onClick={() => viewFile(filePreview)}
+                              className="preview-image"
+                            />
+                            <span className="preview-text">Click to view</span>
+                          </div>
+                        )}
+
+                        {!filePreview && (
+                          <div className="document-preview">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const url = URL.createObjectURL(selectedFile);
+                                viewFile(url);
+                              }}
+                              className="view-document-btn"
+                            >
+                              📄 View Document
+                            </button>
+                          </div>
                         )}
                       </div>
-                      <span className="user-name">{user.cs_user_name}</span>
-                    </div>
-                  ))}
+                    )}
+
+                    {/* Show existing document in edit mode */}
+                    {editIndex !== null &&
+                      formData.document_url &&
+                      !selectedFile && (
+                        <div className="existing-file">
+                          <div className="file-info">
+                            <span className="file-name">
+                              {formData.document_name || "Existing Document"}
+                            </span>
+                            <div className="file-actions">
+                              <button
+                                type="button"
+                                onClick={() => viewFile(formData.document_url)}
+                                className="view-file-btn"
+                              >
+                                👁️ View
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  downloadFile(
+                                    formData.document_url,
+                                    formData.document_name
+                                  )
+                                }
+                                className="download-file-btn"
+                              >
+                                📥 Download
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                  </div>
                 </div>
-                {formData.assigned_to && formData.assigned_to.length > 0 && (
-                  <div className="selected-users">
-                    <strong>Selected: </strong>
-                    {getAssignedUserNames(formData.assigned_to).join(", ")}
+
+                {/* Multi-User Assignment */}
+                <div className="form-field full-width">
+                  <label>
+                    Assigned to: <span className="required">*</span>
+                  </label>
+                  <div className="user-selection-container">
+                    <div className="user-selection-grid">
+                      {allUsers
+                        .filter((user) => {
+                          // Get current user ID from userData
+                          const currentUserId = userData?.user?.user_id;
+
+                          // Filter out current user (don't show them in selection)
+                          if (
+                            currentUserId &&
+                            user.cs_user_id === currentUserId
+                          ) {
+                            return false;
+                          }
+                          return true;
+                        })
+                        .map((user) => (
+                          <div
+                            key={user.cs_user_id}
+                            className={`user-option ${
+                              formData.assigned_to?.includes(user.cs_user_id)
+                                ? "selected"
+                                : ""
+                            }`}
+                            onClick={() => {
+                              if (
+                                editIndex !== null &&
+                                !canUserEditDetails(formData)
+                              )
+                                return;
+                              handleUserSelection(user.cs_user_id);
+                            }}
+                          >
+                            <div className="user-checkbox">
+                              {formData.assigned_to?.includes(
+                                user.cs_user_id
+                              ) && <div className="checkmark">✓</div>}
+                            </div>
+                            <span className="user-name">
+                              {user.cs_user_name}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                    {formData.assigned_to &&
+                      formData.assigned_to.length > 0 && (
+                        <div className="selected-users">
+                          <strong>Selected: </strong>
+                          {getAssignedUserNames(formData.assigned_to).join(
+                            ", "
+                          )}
+                        </div>
+                      )}
+                    {(!formData.assigned_to ||
+                      formData.assigned_to.length === 0) && (
+                      <div className="selection-warning">
+                        Please select at least one user
+                      </div>
+                    )}
                   </div>
-                )}
-                {(!formData.assigned_to ||
-                  formData.assigned_to.length === 0) && (
-                  <div className="selection-warning">
-                    Please select at least one user
+                </div>
+
+                <div className="form-field full-width">
+                  <label>Description:</label>
+                  <textarea
+                    placeholder="Enter letter description"
+                    value={formData.description || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, description: e.target.value })
+                    }
+                    className="form-textarea"
+                    rows="3"
+                    disabled={
+                      editIndex !== null && !canUserEditDetails(formData)
+                    }
+                  />
+                </div>
+
+                {editIndex !== null && !canUserEditDetails(formData) && (
+                  <div className="permission-notice">
+                    <span>
+                      📋 You can view details but only the assigner can edit
+                      them
+                    </span>
                   </div>
                 )}
               </div>
-            </div>
 
-            <div className="form-field full-width">
-              <label>Description:</label>
-              <textarea
-                placeholder="Enter letter description"
-                value={formData.description || ""}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
-                className="form-textarea"
-                rows="3"
-              />
-            </div>
+              {/* Chat Section - Only in Edit Mode */}
+              {editIndex !== null && (
+                <div className="chat-section">
+                  <h4>💬 Discussion ({chatMessages.length})</h4>
+                  <div className="chat-container-inline">
+                    <div className="chat-messages-inline">
+                      {chatMessages.length === 0 ? (
+                        <div className="no-messages">
+                          No messages yet. Start the conversation!
+                        </div>
+                      ) : (
+                        chatMessages.map((message) => (
+                          <div
+                            key={message.message_id || message.timestamp}
+                            className={`message ${
+                              message.user_id === userData.user.user_id
+                                ? "own-message"
+                                : "other-message"
+                            }`}
+                          >
+                            <div className="message-header">
+                              <strong>{message.user_name}</strong>
+                              <span className="message-time">
+                                {new Date(message.timestamp).toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="message-content">
+                              {message.message}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
 
-            {editIndex !== null && (
-              <div className="form-field full-width">
-                <label>Edit Comment / Note:</label>
-                <textarea
-                  placeholder="Add a comment about this edit"
-                  value={formData.comment || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, comment: e.target.value })
-                  }
-                  className="form-textarea"
-                  rows="2"
-                />
-              </div>
-            )}
+                    {canUserComment(formData) && (
+                      <div className="chat-input-container-inline">
+                        <textarea
+                          value={newMessage}
+                          onChange={(e) => setNewMessage(e.target.value)}
+                          placeholder="Type your message..."
+                          className="chat-input-inline"
+                          rows="3"
+                        />
+                        <button
+                          onClick={sendMessage}
+                          className="send-message-btn-inline"
+                        >
+                          Send
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="formButtons">
-              <button onClick={handleSave} className="save-btn">
-                {editIndex !== null ? "Update Letter" : "Add Letter"}
-              </button>
+              {/* Show Save/Update button only for creator or when adding new */}
+              {(editIndex === null || canUserEditDetails(formData)) && (
+                <button
+                  onClick={handleSave}
+                  className="save-btn"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="loading-spinner33"></div>
+                      {editIndex !== null ? "Updating..." : "Adding..."}
+                    </>
+                  ) : editIndex !== null ? (
+                    "Update Letter"
+                  ) : (
+                    "Add Letter"
+                  )}
+                </button>
+              )}
               <button
                 className="ghost"
                 onClick={() => {
                   setFormVisible(false);
-                  setFormData({ assigned_to: [] });
+                  setFormData({ assigned_to: [], document: null });
                   setEditIndex(null);
+                  setChatMessages([]);
+                  setNewMessage("");
+                  setSelectedFile(null);
+                  setFilePreview(null);
+                  setFileInputKey(Date.now());
                 }}
+                disabled={isSubmitting}
               >
                 Cancel
               </button>
@@ -1182,10 +1910,28 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
                           )}
                         </div>
                       </div>
-                      <div className="card-row">
-                        <span className="label">Current Stage:</span>
-                        <span className="value">{l.current_stage || "-"}</span>
-                      </div>
+                      {/* REMOVED: Current Stage from card view */}
+                      {l.document_url && (
+                        <div className="card-row">
+                          <span className="label">Document:</span>
+                          <div className="document-actions-mobile">
+                            <button
+                              onClick={() => viewFile(l.document_url)}
+                              className="view-doc-btn-mobile"
+                            >
+                              👁️ View
+                            </button>
+                            <button
+                              onClick={() =>
+                                downloadFile(l.document_url, l.document_name)
+                              }
+                              className="download-doc-btn-mobile"
+                            >
+                              📥 Download
+                            </button>
+                          </div>
+                        </div>
+                      )}
                       {l.description && (
                         <div className="card-row">
                           <span className="label">Description:</span>
@@ -1200,29 +1946,49 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
                       <div className="card-actions">
                         {canUserEditLetter(l) ? (
                           <>
-                            <button
-                              className="iconcon"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const originalIndex = letters.findIndex(
-                                  (letter) => letter.LT_id === l.LT_id
-                                );
-                                handleEdit(originalIndex);
-                              }}
-                              title="Edit"
-                            >
-                              <Editic />
-                            </button>
-                            <button
-                              className="iconcon"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDelete(l.LT_id);
-                              }}
-                              title="Move to Bin"
-                            >
-                              <Deleteic />
-                            </button>
+                            {/* Show comment icon for assigned users who are not creators */}
+                            {!isUserCreator(l) ? (
+                              <button
+                                className="iconcon comment-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const originalIndex = letters.findIndex(
+                                    (letter) => letter.LT_id === l.LT_id
+                                  );
+                                  handleEdit(originalIndex);
+                                }}
+                                title="Add Comment"
+                              >
+                                💬
+                              </button>
+                            ) : (
+                              /* Show edit icon for creator */
+                              <button
+                                className="iconcon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const originalIndex = letters.findIndex(
+                                    (letter) => letter.LT_id === l.LT_id
+                                  );
+                                  handleEdit(originalIndex);
+                                }}
+                                title="Edit & Chat"
+                              >
+                                <Editic />
+                              </button>
+                            )}
+                            {isUserCreator(l) && (
+                              <button
+                                className="iconcon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(l.LT_id);
+                                }}
+                                title="Move to Bin"
+                              >
+                                <Deleteic />
+                              </button>
+                            )}
                           </>
                         ) : (
                           <span className="no-permission">Not authorized</span>
@@ -1251,6 +2017,7 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
                           <strong>Assigned By:</strong>{" "}
                           {l.assigned_by_name || "-"}
                         </div>
+                        {/* REMOVED: Current Stage from expanded details */}
                         <div className="expanded-section">
                           <strong>Comments:</strong>
                           <span
@@ -1278,6 +2045,7 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
                       <th>Assigned To</th>
                       <th>Letter Date</th>
                       <th>Status</th>
+                      <th>Document</th>
                       <th>Actions</th>
                       <th>Last Updated</th>
                     </tr>
@@ -1324,32 +2092,79 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
                               {formatStatus(l.status)}
                             </span>
                           </td>
+                          <td className="document-cell">
+                            {l.document_url ? (
+                              <div className="document-actions">
+                                <button
+                                  onClick={() => viewFile(l.document_url)}
+                                  className="view-doc-btn"
+                                  title="View Document"
+                                >
+                                  👁️
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    downloadFile(
+                                      l.document_url,
+                                      l.document_name
+                                    )
+                                  }
+                                  className="download-doc-btn"
+                                  title="Download Document"
+                                >
+                                  📥
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="no-document">-</span>
+                            )}
+                          </td>
                           <td className="actions">
                             {canUserEditLetter(l) ? (
                               <>
-                                <button
-                                  className="iconcon"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const originalIndex = letters.findIndex(
-                                      (letter) => letter.LT_id === l.LT_id
-                                    );
-                                    handleEdit(originalIndex);
-                                  }}
-                                  title="Edit"
-                                >
-                                  <Editic />
-                                </button>
-                                <button
-                                  className="iconcon"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDelete(l.LT_id);
-                                  }}
-                                  title="Move to Bin"
-                                >
-                                  <Deleteic />
-                                </button>
+                                {/* Show comment icon for assigned users who are not creators */}
+                                {!isUserCreator(l) ? (
+                                  <button
+                                    className="iconcon comment-btn"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const originalIndex = letters.findIndex(
+                                        (letter) => letter.LT_id === l.LT_id
+                                      );
+                                      handleEdit(originalIndex);
+                                    }}
+                                    title="Add Comment"
+                                  >
+                                    💬
+                                  </button>
+                                ) : (
+                                  /* Show edit icon for creator */
+                                  <button
+                                    className="iconcon"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const originalIndex = letters.findIndex(
+                                        (letter) => letter.LT_id === l.LT_id
+                                      );
+                                      handleEdit(originalIndex);
+                                    }}
+                                    title="Edit & Chat"
+                                  >
+                                    <Editic />
+                                  </button>
+                                )}
+                                {isUserCreator(l) && (
+                                  <button
+                                    className="iconcon"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDelete(l.LT_id);
+                                    }}
+                                    title="Move to Bin"
+                                  >
+                                    <Deleteic />
+                                  </button>
+                                )}
                               </>
                             ) : (
                               <span className="no-permission">
@@ -1376,31 +2191,20 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
                               {l.isEdited && l.updated_at
                                 ? new Date(l.updated_at).toLocaleDateString() +
                                   " "
-                                : // +
-                                  // new Date(l.updated_at).toLocaleTimeString(
-                                  //   [],
-                                  //   {
-                                  //     hour: "2-digit",
-                                  //     minute: "2-digit",
-                                  //   }
-                                  // )
-                                  "Never edited"}
+                                : "Never edited"}
                             </button>
                           </td>
                         </tr>
 
                         {expandedRow === index && (
                           <tr className="expanded-row">
-                            <td colSpan="10">
+                            <td colSpan="11">
                               <div className="expanded-details">
                                 <div className="detail-section">
                                   <strong>Assigned By:</strong>{" "}
                                   {l.assigned_by_name || "-"}
                                 </div>
-                                <div className="detail-section">
-                                  <strong>Current Stage:</strong>{" "}
-                                  {l.current_stage || "-"}
-                                </div>
+                                {/* REMOVED: Current Stage from expanded details */}
                                 <div className="detail-section">
                                   <strong>Comments:</strong>
                                   <span
@@ -1492,6 +2296,27 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
                           {l.assigned_by_name || "-"}
                         </span>
                       </div>
+                      {l.document_url && (
+                        <div className="card-row">
+                          <span className="label">Document:</span>
+                          <div className="document-actions-mobile">
+                            <button
+                              onClick={() => viewFile(l.document_url)}
+                              className="view-doc-btn-mobile"
+                            >
+                              👁️ View
+                            </button>
+                            <button
+                              onClick={() =>
+                                downloadFile(l.document_url, l.document_name)
+                              }
+                              className="download-doc-btn-mobile"
+                            >
+                              📥 Download
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="card-footer">
@@ -1521,6 +2346,7 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
                       <th>Assigned By</th>
                       <th>Letter Date</th>
                       <th>Status</th>
+                      <th>Document</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -1552,6 +2378,30 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
                           >
                             {formatStatus(l.status)}
                           </span>
+                        </td>
+                        <td className="document-cell">
+                          {l.document_url ? (
+                            <div className="document-actions">
+                              <button
+                                onClick={() => viewFile(l.document_url)}
+                                className="view-doc-btn"
+                                title="View Document"
+                              >
+                                👁️
+                              </button>
+                              <button
+                                onClick={() =>
+                                  downloadFile(l.document_url, l.document_name)
+                                }
+                                className="download-doc-btn"
+                                title="Download Document"
+                              >
+                                📥
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="no-document">-</span>
+                          )}
                         </td>
                         <td className="actions">
                           <button

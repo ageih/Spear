@@ -64,7 +64,7 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
   const [meetingForm, setMeetingForm] = useState({
     date: new Date().toISOString().split("T")[0],
     mode: "In-person",
-    decisions: "",
+    // Removed decisions field
     assigned_by: "",
     status: "Pending",
   });
@@ -253,7 +253,7 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                 .split("T")[0]
             : new Date().toISOString().split("T")[0],
           mode: "In-person",
-          decisions: serverMeeting.action || "",
+          // Removed decisions field
           assigned_by: serverMeeting.assigned_by || "",
           status: status,
           actions: serverMeeting.actions
@@ -307,7 +307,7 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                 .split("T")[0]
             : new Date().toISOString().split("T")[0],
           mode: "In-person",
-          decisions: serverMeeting.action || "",
+          // Removed decisions field
           assigned_by: serverMeeting.assigned_by || "",
           status: status,
           actions: serverMeeting.actions
@@ -429,7 +429,6 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
         meetingStatus.toLowerCase().includes(lowerFilter) ||
         meeting.dept?.toLowerCase().includes(lowerFilter) ||
         meeting.subject?.toLowerCase().includes(lowerFilter) ||
-        meeting.decisions?.toLowerCase().includes(lowerFilter) ||
         meeting.actions?.some(
           (action) =>
             action.text?.toLowerCase().includes(lowerFilter) ||
@@ -478,7 +477,7 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
     setMeetingForm({
       date: new Date().toISOString().split("T")[0],
       mode: "In-person",
-      decisions: "",
+      // Removed decisions field
       assigned_by: userData?.user?.user_id,
       status: "Pending",
     });
@@ -523,7 +522,7 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
       subject: currentSession.subject,
       date: meetingForm.date,
       mode: meetingForm.mode,
-      decisions: meetingForm.decisions.trim(),
+      // Removed decisions field
       assigned_by: userData?.user?.user_id,
       status: meetingForm.status,
       actions: savedActions,
@@ -534,7 +533,7 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
         department: newMeeting.dept,
         subject: newMeeting.subject,
         action_deadline: newMeeting.date,
-        action: newMeeting.decisions,
+        // Removed action/decisions field
         assigned_by: userData?.user?.user_id,
         user_id: userData?.user?.user_id,
         status: newMeeting.status,
@@ -818,13 +817,6 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
 
       {expandedMeeting === meeting.id && (
         <div className="meeting-mobile-card-details">
-          <div className="meeting-mobile-field">
-            <label>Major Decisions:</label>
-            <div className="meeting-mobile-decisions">
-              {meeting.decisions || "-"}
-            </div>
-          </div>
-
           <div className="meeting-mobile-actions-section">
             <label>Action Items:</label>
             {meeting.actions && meeting.actions.length > 0 ? (
@@ -1224,25 +1216,6 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                   </tbody>
                 </table>
 
-                <hr className="meeting-divider" />
-
-                <label htmlFor="decisions" className="meeting-label">
-                  Major Decisions
-                </label>
-                <textarea
-                  id="decisions"
-                  className="meeting-textarea"
-                  rows="3"
-                  placeholder="Capture major decisions taken during the meeting"
-                  value={meetingForm.decisions}
-                  onChange={(e) =>
-                    setMeetingForm({
-                      ...meetingForm,
-                      decisions: e.target.value,
-                    })
-                  }
-                />
-
                 <div className="meeting-form-actions">
                   <button
                     className="meeting-btn"
@@ -1347,12 +1320,6 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                                     >
                                       {meeting.status}
                                     </span>
-                                  </div>
-                                  <div>
-                                    <strong>Decisions:</strong>
-                                    <div className="meeting-muted">
-                                      {meeting.decisions || "-"}
-                                    </div>
                                   </div>
 
                                   <div style={{ marginTop: "12px" }}>
@@ -1552,12 +1519,6 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                                   >
                                     {meeting.status}
                                   </span>
-                                </div>
-                                <div>
-                                  <strong>Decisions:</strong>
-                                  <div className="meeting-muted">
-                                    {meeting.decisions || "-"}
-                                  </div>
                                 </div>
 
                                 <div style={{ marginTop: "12px" }}>
