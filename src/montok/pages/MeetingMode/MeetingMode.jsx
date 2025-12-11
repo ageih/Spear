@@ -30,7 +30,7 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
   ];
 
   // Status options
-  const statusOptions = ["Pending", "Important", "Critical"];
+  const statusOptions = ["Pending", "Important", "Critical", "Completed"];
 
   const [meetings, setMeetings] = useState([]);
   const [currentSession, setCurrentSession] = useState(null);
@@ -692,8 +692,12 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
       );
       setMeetings(updatedMeetings);
 
+      // setToast({
+      //   message: `Status updated to ${newStatus}`,
+      //   type: "success",
+      // });
       setToast({
-        message: `Status updated to ${newStatus}`,
+        message: `Action status updated to ${newStatus}`,
         type: "success",
       });
     } catch (error) {
@@ -734,6 +738,10 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
         `${gapi}/meeting_actions?actions_id=${actionId}&user_id=${userData?.user?.user_id}`,
         { action_status: newStatus }
       );
+      setToast({
+        message: `Action status updated to ${newStatus}`,
+        type: "success",
+      });
     } catch (error) {
       console.error("Error updating action status:", error);
       setToast({
@@ -1151,7 +1159,7 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                     </div>
 
                     <div className="meeting-col">
-                      <select
+                      {/* <select
                         className="meeting-select"
                         value={actionAssignedTo}
                         onChange={(e) => setActionAssignedTo(e.target.value)}
@@ -1162,6 +1170,26 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
                             {user.cs_user_name}
                           </option>
                         ))}
+                      </select> */}
+
+                      <select
+                        className="meeting-select"
+                        value={actionAssignedTo}
+                        onChange={(e) => setActionAssignedTo(e.target.value)}
+                      >
+                        <option value="">Assign Action To</option>
+                        {allUsers
+                          .filter(
+                            (u) => u.cs_user_id !== userData?.user?.user_id
+                          ) // <-- hide yourself
+                          .map((user) => (
+                            <option
+                              key={user.cs_user_id}
+                              value={user.cs_user_id}
+                            >
+                              {user.cs_user_name}
+                            </option>
+                          ))}
                       </select>
                     </div>
                   </div>

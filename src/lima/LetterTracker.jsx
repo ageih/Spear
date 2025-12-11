@@ -857,10 +857,8 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
 
         console.log("✅ New letter response:", response.data);
 
-        let newLetterId = response.data;
-        if (response.data.data) {
-          newLetterId = response.data.data;
-        } else if (response.data.response) {
+        let newLetterId;
+        if (response.data.insertedId) {
           newLetterId = response.data.insertedId;
         }
 
