@@ -1443,15 +1443,15 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
                 <div className="form-grid">
                   <div className="form-field">
                     <label>
-                      Date of Dispatch: <span className="required">*</span>
+                      Letter Number:<span className="required">*</span>
                     </label>
                     <input
-                      type="date"
-                      value={formData.date_of_dispatch || ""}
+                      placeholder="Enter letter number"
+                      value={formData.letter_number || ""}
                       onChange={(e) =>
                         setFormData({
                           ...formData,
-                          date_of_dispatch: e.target.value,
+                          letter_number: e.target.value,
                         })
                       }
                       className="form-input"
@@ -1460,7 +1460,6 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
                       }
                     />
                   </div>
-
                   <div className="form-field">
                     <label>
                       Letter Subject: <span className="required">*</span>
@@ -1483,15 +1482,15 @@ const LetterTracker = ({ filterToPage, setSummaryInfo }) => {
 
                   <div className="form-field">
                     <label>
-                      Letter Number:<span className="required">*</span>
+                      Date of Dispatch: <span className="required">*</span>
                     </label>
                     <input
-                      placeholder="Enter letter number"
-                      value={formData.letter_number || ""}
+                      type="date"
+                      value={formData.date_of_dispatch || ""}
                       onChange={(e) =>
                         setFormData({
                           ...formData,
-                          letter_number: e.target.value,
+                          date_of_dispatch: e.target.value,
                         })
                       }
                       className="form-input"

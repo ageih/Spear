@@ -1,9 +1,10 @@
 .policy-page-content {
-  width: 100%;
+  max-width: 1200px;
   min-height: 40vh;
   padding: 16px;
   background: #f9fafb;
   box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .policy-card {
@@ -14,6 +15,7 @@
   padding: 20px;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
   transition: all 0.3s ease;
+  overflow: hidden;
 }
 
 .policy-title {
@@ -49,9 +51,19 @@
   cursor: pointer;
   font-size: 13px;
   transition: background 0.25s ease;
+  white-space: nowrap;
 }
 
 .policy-btn:hover {
+  background: #1d4ed8;
+}
+
+.policy-btn-primary {
+  background: #2563eb;
+  color: white;
+}
+
+.policy-btn-primary:hover {
   background: #1d4ed8;
 }
 
@@ -81,31 +93,127 @@
   color: white;
 }
 
+/* ---------- Active Filter Badge ---------- */
+.active-filter-badge {
+  margin-bottom: 15px;
+  padding: 8px 12px;
+  background-color: #e3f2fd;
+  border: 1px solid #2196f3;
+  border-radius: 4px;
+  color: #1976d2;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.clear-filter-btn {
+  background: none;
+  border: none;
+  color: #1976d2;
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 12px;
+  padding: 4px 8px;
+  transition: color 0.2s;
+}
+
+.clear-filter-btn:hover {
+  color: #0d47a1;
+}
+
 /* ---------- Form Styles ---------- */
 .policy-form-wrap {
   margin-top: 16px;
-  padding: 16px;
+  padding: 20px;
   background: #f9fafb;
-  border: 1px dashed #d1d5db;
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.form-header {
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.form-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.form-section {
+  margin-bottom: 25px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.form-section:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.form-section-title {
+  margin: 0 0 15px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #374151;
 }
 
 .policy-form-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 20px;
+  margin-bottom: 15px;
+}
+
+.form-group {
+  flex: 1;
+  min-width: 200px;
+}
+
+.form-group.full-width {
+  flex: 1 1 100%;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #374151;
+  font-size: 14px;
+}
+
+.required {
+  color: #ef4444;
+  font-weight: bold;
 }
 
 .policy-input,
 .policy-select,
 .policy-textarea {
+  width: 100%;
   border: 1px solid #d1d5db;
   border-radius: 6px;
-  font-size: 13px;
-  padding: 8px;
+  font-size: 14px;
+  padding: 10px 12px;
   font-family: inherit;
   box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.policy-input:focus,
+.policy-select:focus,
+.policy-textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .policy-input-small {
@@ -120,46 +228,323 @@
 .policy-textarea {
   width: 100%;
   resize: vertical;
-  min-height: 80px;
+  min-height: 100px;
+  line-height: 1.5;
 }
 
 .policy-form-actions {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   justify-content: flex-end;
   flex-wrap: wrap;
+  margin-top: 25px;
+  padding-top: 20px;
+  border-top: 1px solid #e5e7eb;
 }
 
 /* ---------- Table View (Desktop) ---------- */
 .policy-table-container {
+  width: 100%;
+  overflow: hidden;
+}
+
+.table-scroll-wrapper {
+  width: 100%;
   overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  max-width: 100%;
 }
 
 .policy-table {
   width: 100%;
-  min-width: 900px;
+  min-width: 1200px;
   border-collapse: collapse;
-  font-size: 14px;
-  border-radius: 8px;
-  overflow: hidden;
-  table-layout: auto;
+  font-size: 13px;
+  table-layout: fixed; /* This ensures columns have fixed widths */
 }
 
+/* Apply column widths directly to both th and td */
+.policy-table th,
+.policy-table td {
+  padding: 12px 10px;
+  text-align: left;
+  vertical-align: top;
+  overflow: hidden;
+  word-wrap: break-word;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+/* Column width definitions - TH max width 100px, TD can be wider */
+.policy-table th.col-sl,
+.policy-table td.col-sl {
+  width: 60px;
+  min-width: 60px;
+}
+
+.policy-table th.col-sl {
+  max-width: 100px;
+}
+
+.policy-table td.col-sl {
+  max-width: 60px;
+}
+
+.policy-table th.col-policy,
+.policy-table td.col-policy {
+  width: 200px;
+  min-width: 100px;
+}
+
+.policy-table th.col-policy {
+  max-width: 100px;
+}
+
+.policy-table td.col-policy {
+  max-width: 150px;
+}
+
+.policy-table th.col-dept,
+.policy-table td.col-dept {
+  width: 100px;
+  min-width: 15px;
+}
+
+.policy-table th.col-dept {
+  max-width: 100px;
+}
+
+.policy-table td.col-dept {
+  max-width: 150px;
+}
+
+.policy-table th.col-officer,
+.policy-table td.col-officer {
+  width: 80px;
+  min-width: 80px;
+}
+
+.policy-table th.col-officer {
+  max-width: 80px;
+}
+
+.policy-table td.col-officer {
+  max-width: 80px;
+}
+
+.policy-table th.col-priority,
+.policy-table td.col-priority {
+  width: 90px;
+  min-width: 90px;
+}
+
+.policy-table th.col-priority {
+  max-width: 100px;
+}
+
+.policy-table td.col-priority {
+  max-width: 90px;
+}
+
+.policy-table th.col-status,
+.policy-table td.col-status {
+  width: 140px;
+  min-width: 120px;
+}
+
+.policy-table th.col-status {
+  max-width: 100px;
+}
+
+.policy-table td.col-status {
+  max-width: 140px;
+}
+
+.policy-table th.col-deadline,
+.policy-table td.col-deadline {
+  width: 80px;
+  min-width: 80px;
+}
+
+.policy-table th.col-deadline {
+  max-width: 100px;
+}
+
+.policy-table td.col-deadline {
+  max-width: 100px;
+}
+
+.policy-table th.col-assigned,
+.policy-table td.col-assigned {
+  width: 150px;
+  min-width: 130px;
+}
+
+.policy-table th.col-assigned {
+  max-width: 100px;
+}
+
+.policy-table td.col-assigned {
+  max-width: 150px;
+}
+
+.policy-table th.col-nudge,
+.policy-table td.col-nudge {
+  width: 120px;
+  min-width: 120px;
+}
+
+.policy-table th.col-nudge {
+  max-width: 100px;
+}
+
+.policy-table td.col-nudge {
+  max-width: 150px;
+}
+
+.policy-table th.col-remarks,
+.policy-table td.col-remarks {
+  width: 80px;
+  min-width: 80px;
+}
+
+.policy-table th.col-remarks {
+  max-width: 100px;
+}
+
+.policy-table td.col-remarks {
+  max-width: 180px;
+}
+
+.policy-table th.col-actions,
+.policy-table td.col-actions {
+  width: 80px;
+  min-width: 80px;
+}
+
+.policy-table th.col-actions {
+  max-width: 80px;
+}
+
+.policy-table td.col-actions {
+  max-width: 80px;
+}
+
+.policy-table th.col-history,
+.policy-table td.col-history {
+  width: 80px;
+  min-width: 80px;
+}
+
+.policy-table th.col-history {
+  max-width: 100px;
+}
+
+.policy-table td.col-history {
+  max-width: 80px;
+}
+
+/* Table header specific styles */
 .policy-table thead th {
   background: #f3f4f6;
-  padding: 10px;
-  text-align: left;
   font-weight: 600;
   color: #374151;
   border-bottom: 2px solid #e5e7eb;
   white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+/* Table body specific styles */
 .policy-table tbody td {
-  padding: 10px;
-  border-bottom: 1px solid #f3f4f6;
-  vertical-align: top;
   color: #374151;
+}
+
+/* Full content cell - respects parent td width */
+.full-content-cell {
+  word-wrap: break-word;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
+  line-height: 1.5;
+  max-height: 120px;
+  overflow-y: auto;
+  padding: 2px 0;
+  width: 100%;
+  display: block;
+  box-sizing: border-box;
+}
+
+/* Text truncation for header cells (max 100px) */
+.policy-table thead th.col-sl .full-content-cell,
+.policy-table thead th.col-dept .full-content-cell,
+.policy-table thead th.col-officer .full-content-cell,
+.policy-table thead th.col-priority .full-content-cell,
+.policy-table thead th.col-status .full-content-cell,
+.policy-table thead th.col-deadline .full-content-cell,
+.policy-table thead th.col-assigned .full-content-cell,
+.policy-table thead th.col-nudge .full-content-cell,
+.policy-table thead th.col-remarks .full-content-cell,
+.policy-table thead th.col-actions .full-content-cell,
+.policy-table thead th.col-history .full-content-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100px;
+}
+
+/* Text truncation for body cells */
+.policy-table tbody td.col-sl .full-content-cell,
+.policy-table tbody td.col-dept .full-content-cell,
+.policy-table tbody td.col-officer .full-content-cell,
+.policy-table tbody td.col-priority .full-content-cell,
+.policy-table tbody td.col-deadline .full-content-cell,
+.policy-table tbody td.col-assigned .full-content-cell,
+.policy-table tbody td.col-nudge .full-content-cell,
+.policy-table tbody td.col-remarks .full-content-cell,
+.policy-table tbody td.col-actions .full-content-cell,
+.policy-table tbody td.col-history .full-content-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+/* For policy name and status in body, allow more flexibility */
+.policy-table tbody td.col-policy .full-content-cell,
+.policy-table tbody td.col-status .full-content-cell {
+  -webkit-line-clamp: 4;
+  max-height: 150px;
+}
+
+/* When expanded, show all content in body */
+.policy-row-expanded .full-content-cell {
+  -webkit-line-clamp: unset !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+/* Custom scrollbar for full content cells */
+.full-content-cell::-webkit-scrollbar {
+  width: 4px;
+}
+
+.full-content-cell::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 2px;
+}
+
+.full-content-cell::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 2px;
+}
+
+.full-content-cell::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
 }
 
 .policy-table-row {
@@ -174,37 +559,136 @@
 .policy-table-button {
   display: flex;
   gap: 6px;
+  min-width: 80px;
 }
 
-/* ---------- Priority & Status ---------- */
-.policy-priority-high {
+/* ---------- Priority Badges ---------- */
+.priority-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  min-width: 60px;
+}
+
+.priority-badge-high {
+  background-color: #fee2e2;
   color: #dc2626;
-  font-weight: 600;
-}
-.policy-priority-medium {
-  color: #d97706;
-  font-weight: 600;
-}
-.policy-priority-low {
-  color: #047857;
-  font-weight: 600;
+  border: 1px solid #fecaca;
 }
 
-.policy-status-completed {
-  color: #059669;
-  font-weight: 600;
-}
-.policy-status-implementation {
+.priority-badge-medium {
+  background-color: #fef3c7;
   color: #d97706;
-  font-weight: 600;
+  border: 1px solid #fde68a;
 }
-.policy-status-approved {
-  color: #2563eb;
-  font-weight: 600;
+
+.priority-badge-low {
+  background-color: #d1fae5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
 }
-.policy-status-drafted {
-  color: #6b7280;
+
+/* ---------- Status Badges ---------- */
+.status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
   font-weight: 600;
+  text-align: center;
+  /* white-space: nowrap; */
+  word-wrap: break-word;
+
+  min-width: 60px;
+}
+
+.status-badge-completed {
+  background-color: #d1fae5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.status-badge-implementation {
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.status-badge-approved {
+  background-color: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+
+.status-badge-drafted {
+  background-color: #f3f4f6;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+}
+
+.status-badge-pending {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.status-badge-important {
+  background-color: #f3e8ff;
+  color: #6b21a8;
+  border: 1px solid #e9d5ff;
+}
+
+.status-badge-critical {
+  background-color: #fecaca;
+  color: #7f1d1d;
+  border: 1px solid #fca5a5;
+}
+
+/* ---------- Assigned Users Badges ---------- */
+.assigned-users-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 120px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background-color: #f9fafb;
+}
+
+.assigned-user-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  background-color: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  margin: 2px;
+  white-space: nowrap;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-word;
+}
+
+.assigned-user-badge:hover {
+  background-color: #bae6fd;
+  border-color: #7dd3fc;
+}
+
+/* Mobile version of assigned users */
+.assigned-users-container-mobile {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
 }
 
 /* ---------- Details Row ---------- */
@@ -215,21 +699,35 @@
 
 .policy-details-content {
   background: #fff;
-  padding: 10px;
+  padding: 12px;
   border-radius: 6px;
   border: 1px solid #e5e7eb;
   line-height: 1.4;
+  font-size: 13px;
 }
 
-.policy-remarks-cell {
-  max-width: 200px;
+.policy-details-content div {
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f3f4f6;
+  word-break: break-word;
 }
 
-.policy-remarks-truncate {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
+.policy-details-content div:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+/* ---------- Authorization Text ---------- */
+.not-authorized-text,
+.not-owner-text {
+  color: #6b7280;
+  font-size: 11px;
+  font-style: italic;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.4;
 }
 
 /* ---------- Mobile Card Layout ---------- */
@@ -242,7 +740,7 @@
 
 .policy-card-item {
   background: #fff;
-  border: 1px solid #172f5e;
+  border: 1px solid #e5e7eb;
   border-radius: 10px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
   padding: 12px;
@@ -264,6 +762,7 @@
   align-items: flex-start;
   margin-bottom: 8px;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .policy-card-sl {
@@ -279,27 +778,8 @@
   color: #111827;
   font-size: 15px;
   line-height: 1.3;
-}
-
-.policy-card-priority {
-  padding: 3px 8px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.policy-card-priority.policy-priority-high {
-  background: #fee2e2;
-  color: #dc2626;
-}
-.policy-card-priority.policy-priority-medium {
-  background: #fef3c7;
-  color: #d97706;
-}
-.policy-card-priority.policy-priority-low {
-  background: #d1fae5;
-  color: #047857;
+  min-width: 0;
+  word-break: break-word;
 }
 
 .policy-card-details {
@@ -326,20 +806,7 @@
 .policy-card-value {
   color: #111827;
   word-break: break-word;
-  line-height: 1.3;
-}
-
-.policy-card-value.policy-status-completed {
-  color: #059669;
-}
-.policy-card-value.policy-status-implementation {
-  color: #d97706;
-}
-.policy-card-value.policy-status-approved {
-  color: #2563eb;
-}
-.policy-card-value.policy-status-drafted {
-  color: #6b7280;
+  line-height: 1.5;
 }
 
 .policy-card-expanded-content {
@@ -366,7 +833,8 @@
 
 .policy-card-expanded-value {
   color: #374151;
-  line-height: 1.4;
+  line-height: 1.5;
+  word-break: break-word;
 }
 
 .policy-card-actions {
@@ -404,6 +872,7 @@
   font-size: 1.1rem;
   color: #666;
   background-color: #f9f9f9;
+  word-break: break-word;
 }
 
 .policy-mobile-empty {
@@ -414,6 +883,130 @@
   background-color: #f9f9f9;
   border-radius: 8px;
   margin: 1rem 0;
+  word-break: break-word;
+}
+
+/* Mobile card badges */
+.policy-card-item .priority-badge,
+.policy-card-item .status-badge {
+  padding: 3px 8px;
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+.iconcon {
+  border: none;
+  color: none;
+  background-color: rgba(255, 0, 0, 0);
+  padding: 7px 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+.iconcon:hover {
+  background-color: rgba(0, 0, 255, 0.382);
+}
+
+/* ---------- User selection styles ---------- */
+.user-selection-container {
+  width: 100%;
+}
+
+.user-selection-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+  max-height: 250px;
+  overflow-y: auto;
+  padding: 12px;
+  background-color: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  margin-bottom: 10px;
+}
+
+.user-option {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: white;
+  min-height: 44px;
+}
+
+.user-option:hover {
+  background-color: #f3f4f6;
+  border-color: #9ca3af;
+  transform: translateY(-1px);
+}
+
+.user-option.selected {
+  background-color: #e0f2fe;
+  border-color: #0ea5e9;
+  box-shadow: 0 1px 3px rgba(14, 165, 233, 0.2);
+}
+
+.user-checkbox {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #9ca3af;
+  border-radius: 4px;
+  margin-right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.user-option.selected .user-checkbox {
+  background-color: #0ea5e9;
+  border-color: #0ea5e9;
+}
+
+.checkmark {
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.user-name {
+  font-size: 14px;
+  color: #374151;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.selected-users {
+  margin-top: 10px;
+  padding: 10px 14px;
+  background-color: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #0369a1;
+  word-break: break-word;
+}
+
+.selected-users strong {
+  color: #0369a1;
+  font-weight: 600;
+}
+
+.selection-warning {
+  margin-top: 10px;
+  padding: 10px 14px;
+  background-color: #fef3c7;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  color: #92400e;
+  font-size: 14px;
+  font-weight: 500;
+  word-break: break-word;
 }
 
 /* ---------- Responsive Breakpoints ---------- */
@@ -462,14 +1055,18 @@
 
   /* Mobile Form Styles */
   .policy-form-wrap {
-    padding: 12px;
+    padding: 15px;
     margin-top: 12px;
   }
 
   .policy-form-row {
     flex-direction: column;
-    gap: 8px;
-    margin-bottom: 8px;
+    gap: 15px;
+    margin-bottom: 15px;
+  }
+
+  .form-group {
+    min-width: 100%;
   }
 
   .policy-input,
@@ -484,13 +1081,9 @@
     width: 100% !important;
   }
 
-  .policy-input-flex {
-    flex: none;
-  }
-
   .policy-form-actions {
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
   }
 
   .policy-form-actions .policy-btn {
@@ -512,17 +1105,20 @@
     align-items: flex-start;
   }
 
-  .policy-card-priority {
-    align-self: flex-start;
-    margin-top: 4px;
-  }
-
   .policy-card-actions {
     justify-content: stretch;
   }
 
   .policy-card-actions .policy-btn {
     flex: 1;
+  }
+
+  .form-section-title {
+    font-size: 15px;
+  }
+
+  .form-title {
+    font-size: 16px;
   }
 }
 
@@ -563,11 +1159,43 @@
   }
 
   .policy-form-wrap {
-    padding: 10px;
+    padding: 12px;
   }
 
   .policy-form-row {
+    gap: 12px;
+  }
+
+  .user-selection-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    max-height: 180px;
     gap: 6px;
+    padding: 8px;
+  }
+
+  .user-option {
+    padding: 6px 8px;
+    min-height: 36px;
+  }
+
+  .user-checkbox {
+    width: 16px;
+    height: 16px;
+    margin-right: 8px;
+  }
+
+  .user-name {
+    font-size: 12px;
+  }
+
+  .form-label {
+    font-size: 13px;
+    margin-bottom: 6px;
+  }
+
+  .form-section-title {
+    font-size: 14px;
+    margin-bottom: 12px;
   }
 }
 
@@ -578,7 +1206,7 @@
   }
 
   .policy-form-wrap {
-    padding: 8px;
+    padding: 10px;
   }
 
   .policy-input,
@@ -592,119 +1220,19 @@
     padding: 10px;
     font-size: 14px;
   }
-}
 
-/* PolicyTracker.css - Status Colors */
+  .priority-badge,
+  .status-badge {
+    font-size: 9px;
+    padding: 3px 6px;
+  }
 
-/* Priority Colors */
-.policy-priority-high {
-  color: #dc2626;
-  background-color: #fef2f2;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-weight: 600;
-}
+  .assigned-user-badge {
+    font-size: 9px;
+    padding: 2px 6px;
+  }
 
-.policy-priority-medium {
-  color: #d97706;
-  background-color: #fffbeb;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-weight: 600;
-}
-
-.policy-priority-low {
-  color: #059669;
-  background-color: #f0fdf4;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-weight: 600;
-}
-
-/* Status Colors */
-.policy-status-completed {
-  color: #059669;
-  background-color: #f0fdf4;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-weight: 600;
-  border: 1px solid #10b981;
-}
-
-.policy-status-implementation {
-  color: #d97706;
-  background-color: #fffbeb;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-weight: 600;
-  border: 1px solid #f59e0b;
-}
-
-.policy-status-approved {
-  color: #2563eb;
-  background-color: #eff6ff;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-weight: 600;
-  border: 1px solid #3b82f6;
-}
-
-.policy-status-drafted {
-  color: #6b7280;
-  background-color: #f9fafb;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-weight: 600;
-  border: 1px solid #9ca3af;
-}
-
-.policy-status-pending {
-  color: #dc2626;
-  background-color: #fef2f2;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-weight: 600;
-  border: 1px solid #ef4444;
-}
-
-.policy-status-important {
-  color: #7c3aed;
-  background-color: #faf5ff;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-weight: 600;
-  border: 1px solid #8b5cf6;
-}
-
-.policy-status-critical {
-  color: #991b1b;
-  background-color: #fef2f2;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-weight: 600;
-  border: 1px solid #dc2626;
-}
-
-/* Mobile card status styles */
-.policy-card-value.policy-status-completed,
-.policy-card-value.policy-status-implementation,
-.policy-card-value.policy-status-approved,
-.policy-card-value.policy-status-drafted,
-.policy-card-value.policy-status-pending,
-.policy-card-value.policy-status-important,
-.policy-card-value.policy-status-critical {
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.iconcon {
-  border: none;
-  color: none;
-  background-color: rgba(255, 0, 0, 0);
-  padding: 7px 8px;
-}
-.iconcon:hover {
-  background-color: rgba(0, 0, 255, 0.382);
+  .form-title {
+    font-size: 15px;
+  }
 }

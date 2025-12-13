@@ -236,7 +236,7 @@ const MeetingMode = ({ filterToPage, setSummaryInfo }) => {
         `${gapi}/meetings?user_id=${userData.user.user_id}`
       );
 
-      console.log("📡 Server response for meetings:", response.data);
+      console.log(" Server response for meetings:", response.data);
 
       const mappedMeetings = response.data.data.map((serverMeeting, index) => {
         const status = serverMeeting.status || "Pending";

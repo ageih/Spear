@@ -151,13 +151,77 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
     deadline: "",
     review: "",
     nudge: "",
-    assigned_to: "",
+    assigned_to: [], // Changed to array
     assigned_by: "",
   });
 
   const getUserNameById = (userId) => {
     const foundUser = allUsers.find((user) => user.cs_user_id === userId);
     return foundUser ? foundUser.cs_user_name : userId || "Unassigned";
+  };
+
+  // Helper to get multiple user names (FIXED: returns array)
+  const getAssignedToNames = (assignedTo) => {
+    // Handle both array and string
+    let ids = assignedTo;
+    if (!ids) return []; // Return empty array
+
+    if (typeof ids === "string") {
+      if (ids.includes(",")) {
+        ids = ids
+          .split(",")
+          .map((id) => id.trim())
+          .filter((id) => id !== "");
+      } else if (ids.trim() !== "") {
+        ids = [ids.trim()];
+      } else {
+        ids = [];
+      }
+    } else if (!Array.isArray(ids)) {
+      ids = [];
+    }
+
+    const names = ids.map((userId) => getUserNameById(userId));
+    return names; // Return as array
+  };
+
+  // Helper to get names as string for display
+  const getAssignedToNamesString = (assignedTo) => {
+    const names = getAssignedToNames(assignedTo);
+    if (names.length === 0) return "Unassigned";
+    return names.join(", ");
+  };
+
+  // Get assigned user badges for table display
+  const getAssignedUserBadges = (assignedTo) => {
+    const names = getAssignedToNames(assignedTo);
+    if (names.length === 0) return null;
+
+    return names.map((name, index) => (
+      <span key={index} className="assigned-user-badge">
+        {name}
+      </span>
+    ));
+  };
+
+  // Handle user selection (like LetterTracker)
+  const handleUserSelection = (userId) => {
+    setFormData((prev) => {
+      const currentAssigned = prev.assigned_to || [];
+      const isSelected = currentAssigned.includes(userId);
+
+      if (isSelected) {
+        return {
+          ...prev,
+          assigned_to: currentAssigned.filter((id) => id !== userId),
+        };
+      } else {
+        return {
+          ...prev,
+          assigned_to: [...currentAssigned, userId],
+        };
+      }
+    });
   };
 
   // Initialize form with user data when available
@@ -167,6 +231,7 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
         ...prev,
         assigned_by: userData.user.user_id,
         user_id: userData.user.user_id,
+        assigned_to: [], // Initialize as empty array
       }));
     }
   }, [userData]);
@@ -183,7 +248,7 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
     }
   };
 
-  // Fetch policies function
+  // Fetch policies function - UPDATED to handle arrays
   const fetchPolicies = async () => {
     try {
       if (!userData?.user?.user_id) {
@@ -195,24 +260,43 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
       );
       const ptdata = response.data.response;
 
-      const mappedData = ptdata.map((item, index) => ({
-        id: item.id,
-        PT_id: item.PT_id,
-        user_id: item.user_id,
-        sl: index + 1,
-        policy: item.policy_name || "Unnamed Policy",
-        department: item.department_in_charge || "No Department",
-        officer: item.nodal_officer || "No Officer",
-        priority: item.priority || "Medium",
-        status: item.current_status || "Drafted",
-        deadline: item.tentative_deadline || "N/A",
-        remarks: item.activity_status || "",
-        review: item.last_review_date || "N/A",
-        nudge: item.nudge || "No next steps",
-        assigned_to: item.assigned_to || "",
-        assigned_to_name: getUserNameById(item.assigned_to),
-        assigned_by: item.assigned_by || "",
-      }));
+      const mappedData = ptdata.map((item, index) => {
+        // Convert assigned_to to array if it's a comma-separated string
+        let assignedToArray = [];
+        if (item.assigned_to) {
+          if (typeof item.assigned_to === "string") {
+            if (item.assigned_to.includes(",")) {
+              assignedToArray = item.assigned_to
+                .split(",")
+                .map((id) => id.trim())
+                .filter((id) => id !== "");
+            } else if (item.assigned_to.trim() !== "") {
+              assignedToArray = [item.assigned_to.trim()];
+            }
+          } else if (Array.isArray(item.assigned_to)) {
+            assignedToArray = item.assigned_to;
+          }
+        }
+
+        return {
+          id: item.id,
+          PT_id: item.PT_id,
+          user_id: item.user_id,
+          sl: index + 1,
+          policy: item.policy_name || "Unnamed Policy",
+          department: item.department_in_charge || "No Department",
+          officer: item.nodal_officer || "No Officer",
+          priority: item.priority || "Medium",
+          status: item.current_status || "Drafted",
+          deadline: item.tentative_deadline || "N/A",
+          remarks: item.activity_status || "",
+          review: item.last_review_date || "N/A",
+          nudge: item.nudge || "No next steps",
+          assigned_to: assignedToArray, // Now an array
+          assigned_to_name: getAssignedToNamesString(assignedToArray), // For display (string)
+          assigned_by: item.assigned_by || "",
+        };
+      });
       setPolicies(mappedData);
       return true;
     } catch (error) {
@@ -232,24 +316,43 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
       );
       const ptdata = response.data.response;
 
-      const mappedData = ptdata.map((item, index) => ({
-        id: item.id,
-        PT_id: item.PT_id,
-        user_id: item.user_id,
-        sl: index + 1,
-        policy: item.policy_name || "Unnamed Policy",
-        department: item.department_in_charge || "No Department",
-        officer: item.nodal_officer || "No Officer",
-        priority: item.priority || "Medium",
-        status: item.current_status || "Drafted",
-        deadline: item.tentative_deadline || "N/A",
-        remarks: item.activity_status || "",
-        review: item.last_review_date || "N/A",
-        nudge: item.nudge || "No next steps",
-        assigned_to: item.assigned_to || "",
-        assigned_to_name: getUserNameById(item.assigned_to),
-        assigned_by: item.assigned_by || "",
-      }));
+      const mappedData = ptdata.map((item, index) => {
+        // Convert assigned_to to array if it's a comma-separated string
+        let assignedToArray = [];
+        if (item.assigned_to) {
+          if (typeof item.assigned_to === "string") {
+            if (item.assigned_to.includes(",")) {
+              assignedToArray = item.assigned_to
+                .split(",")
+                .map((id) => id.trim())
+                .filter((id) => id !== "");
+            } else if (item.assigned_to.trim() !== "") {
+              assignedToArray = [item.assigned_to.trim()];
+            }
+          } else if (Array.isArray(item.assigned_to)) {
+            assignedToArray = item.assigned_to;
+          }
+        }
+
+        return {
+          id: item.id,
+          PT_id: item.PT_id,
+          user_id: item.user_id,
+          sl: index + 1,
+          policy: item.policy_name || "Unnamed Policy",
+          department: item.department_in_charge || "No Department",
+          officer: item.nodal_officer || "No Officer",
+          priority: item.priority || "Medium",
+          status: item.current_status || "Drafted",
+          deadline: item.tentative_deadline || "N/A",
+          remarks: item.activity_status || "",
+          review: item.last_review_date || "N/A",
+          nudge: item.nudge || "No next steps",
+          assigned_to: assignedToArray, // Now an array
+          assigned_to_name: getAssignedToNamesString(assignedToArray), // For display (string)
+          assigned_by: item.assigned_by || "",
+        };
+      });
       setDeleted(mappedData);
       return true;
     } catch (error) {
@@ -257,53 +360,6 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
       return false;
     }
   };
-
-  // Update summary counts with proper filtering logic - UPDATED
-  // const updateSummaryCounts = (updatedPolicies) => {
-  //   if (!setSummaryInfo) return;
-
-  //   const today = new Date();
-
-  //   // Important count - High priority policies
-  //   const importantCount = updatedPolicies.filter(
-  //     (p) => !p.deleted && (p.priority === "High" || p.priority === "high")
-  //   ).length;
-
-  //   // Pending count - policies with pending status
-  //   const pendingCount = updatedPolicies.filter(
-  //     (p) => !p.deleted && isPolicyPending(p)
-  //   ).length;
-
-  //   // Due This Week count - pending policies with deadline this week
-  //   const startOfWeek = new Date(today);
-  //   startOfWeek.setDate(today.getDate() - today.getDay());
-  //   const endOfWeek = new Date(startOfWeek);
-  //   endOfWeek.setDate(startOfWeek.getDate() + 6);
-
-  //   const dueThisWeekCount = updatedPolicies.filter((p) => {
-  //     if (p.deleted || !isPolicyPending(p)) return false;
-  //     return isDeadlineInRange(p.deadline, startOfWeek, endOfWeek);
-  //   }).length;
-
-  //   // Due This Month count - pending policies with deadline this month
-  //   const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-  //   const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-
-  //   const dueThisMonthCount = updatedPolicies.filter((p) => {
-  //     if (p.deleted || !isPolicyPending(p)) return false;
-  //     return isDeadlineInRange(p.deadline, startOfMonth, endOfMonth);
-  //   }).length;
-
-  //   setSummaryInfo((prev) => ({
-  //     ...prev,
-  //     policies: [
-  //       { label: "Important", value: importantCount },
-  //       { label: "Pending", value: pendingCount },
-  //       { label: "Due This Week", value: dueThisWeekCount },
-  //       { label: "Due this month", value: dueThisMonthCount },
-  //     ],
-  //   }));
-  // };
 
   // Update summary counts with proper filtering logic - FIXED
   const updateSummaryCounts = (updatedPolicies) => {
@@ -340,21 +396,6 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
       if (p.deleted || !isPolicyPending(p)) return false;
       return isDeadlineInRange(p.deadline, startOfMonth, endOfMonth);
     }).length;
-
-    // Debug logging to see what's being counted
-    console.log("📊 Summary counts debug:", {
-      important: importantCount,
-      pending: pendingCount,
-      dueThisWeek: dueThisWeekCount,
-      dueThisMonth: dueThisMonthCount,
-      totalPolicies: updatedPolicies.length,
-      importantPolicies: updatedPolicies
-        .filter(
-          (p) =>
-            !p.deleted && p.status && p.status.toLowerCase() === "important"
-        )
-        .map((p) => ({ policy: p.policy, status: p.status })),
-    });
 
     setSummaryInfo((prev) => ({
       ...prev,
@@ -398,13 +439,12 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
     if (editingPolicy && allUsers.length > 0) {
       setFormData((prev) => ({
         ...prev,
-        assigned_to: editingPolicy.assigned_to,
-        assigned_to_name: getUserNameById(editingPolicy.assigned_to),
+        assigned_to: editingPolicy.assigned_to || [],
       }));
     }
   }, [editingPolicy, allUsers]);
 
-  // Filtered data based on current filter - WITH DEBUGGING
+  // Filtered data based on current filter
   const filteredPolicies = policies.filter((policy) => {
     if (!filter || filter.trim() === "") return true;
 
@@ -419,33 +459,8 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
         dateRangeFilter.end
       );
 
-      console.log("🔍 Policy filter debug:", {
-        policy: policy.policy,
-        status: policy.status,
-        isPending: isPending,
-        deadline: policy.deadline,
-        inRange: inRange,
-        dateRange: dateRangeFilter.type,
-        shouldShow: isPending && inRange,
-      });
-
-      // For date range filters, only show pending policies within the date range
-      if (!isPending) {
-        console.log(
-          `❌ ${policy.policy} - Status is not "Pending" (current: "${policy.status}")`
-        );
-        return false;
-      }
-      if (!inRange) {
-        console.log(
-          `❌ ${policy.policy} - Deadline "${policy.deadline}" not in ${dateRangeFilter.type} range`
-        );
-        return false;
-      }
-      console.log(
-        `✅ ${policy.policy} - Matches filter (Status: "Pending", Deadline: "${policy.deadline}")`
-      );
-      return true;
+      if (!isPending) return false;
+      return inRange;
     }
 
     // Regular text search
@@ -496,13 +511,14 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
     );
   });
 
-  // Check if current user can edit/delete the policy
+  // Check if current user can edit/delete the policy (updated for array)
   const canUserEditPolicy = (policy) => {
     if (!userData?.user?.user_id) return false;
 
     return (
       userData.user.user_id === policy.user_id ||
-      userData.user.user_id === policy.assigned_to
+      (Array.isArray(policy.assigned_to) &&
+        policy.assigned_to.includes(userData.user.user_id))
     );
   };
 
@@ -527,7 +543,7 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
       deadline: "",
       review: "",
       nudge: "",
-      assigned_to: "",
+      assigned_to: [],
       assigned_by: userData?.user?.user_id || "",
       user_id: userData?.user?.user_id || "",
     });
@@ -569,7 +585,6 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
       return;
     }
     if (!formData.status) {
-      alert("Please select Status");
       setToast({
         message: `Please select Status`,
         type: "error",
@@ -604,15 +619,16 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
       });
       return;
     }
-    if (!formData.assigned_to) {
+    if (!formData.assigned_to || formData.assigned_to.length === 0) {
       setToast({
-        message: `assigned_to is missing`,
+        message: `Please select at least one assignee`,
         type: "error",
       });
       return;
     }
 
-    console.log("111111111", editingPolicy);
+    // Ensure we're only sending the selected users
+    const assignedToIds = formData.assigned_to || [];
 
     const apiData = {
       data: {
@@ -625,17 +641,19 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
         activity_status: formData.remarks,
         last_review_date: formData.review,
         nudge: formData.nudge,
-        assigned_to: formData.assigned_to,
+        assigned_to: assignedToIds.join(","), // Convert array to comma-separated string
         assigned_by: formData.assigned_by,
         user_id: userData?.user?.user_id,
       },
     };
 
+    console.log("Sending API data:", apiData);
+    console.log("Assigned users IDs:", assignedToIds);
+
     try {
       let response;
       let ptid;
       if (editingPolicy) {
-        console.log("here trying update", apiData);
         response = await axios.put(
           `${gapi}/PT?PT_id=${editingPolicy.PT_id}?user_id=${userData?.user?.user_id}`,
           {
@@ -647,10 +665,8 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
           message: `${formData.policy} updated successfully`,
           type: "success",
         });
-        console.log(response.data);
         ptid = editingPolicy.PT_id;
       } else {
-        console.log(apiData, "b4 sending");
         response = await axios.post(
           `${gapi}/PT?user_id=${userData?.user?.user_id}`,
           apiData
@@ -659,11 +675,8 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
           message: `${formData.policy} created successfully`,
           type: "success",
         });
-        console.log(response.data);
         ptid = response.data.inserted_id;
       }
-
-      console.log(response, "Policy saved successfully:", response.data);
 
       const nextSl =
         policies.length > 0 ? Math.max(...policies.map((p) => p.sl)) + 1 : 1;
@@ -681,8 +694,8 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
         remarks: formData.remarks,
         review: formData.review,
         nudge: formData.nudge,
-        assigned_to: formData.assigned_to,
-        assigned_to_name: getUserNameById(formData.assigned_to),
+        assigned_to: assignedToIds, // Use the selected users array
+        assigned_to_name: getAssignedToNamesString(assignedToIds), // Use string version
         assigned_by: formData.assigned_by,
         user_id: userData?.user?.user_id,
       };
@@ -715,21 +728,31 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
   const handleEdit = (policy) => {
     setEditingPolicy(policy);
     setShowForm(true);
+    // Ensure assigned_to is an array
+    let assignedToArray = policy.assigned_to;
+    if (!assignedToArray) {
+      assignedToArray = [];
+    } else if (typeof assignedToArray === "string") {
+      if (assignedToArray.includes(",")) {
+        assignedToArray = assignedToArray
+          .split(",")
+          .map((id) => id.trim())
+          .filter((id) => id !== "");
+      } else if (assignedToArray.trim() !== "") {
+        assignedToArray = [assignedToArray.trim()];
+      } else {
+        assignedToArray = [];
+      }
+    }
+
     setFormData({
       ...policy,
-      assigned_to: policy.assigned_to,
+      assigned_to: assignedToArray,
     });
   };
 
   const handleDelete = async (id) => {
-    console.log("🔍 === DELETE DEBUG START ===");
-    console.log("Delete clicked with ID:", id);
-    console.log("ID type:", typeof id);
-    console.log("ID value:", id);
-
     if (!id) {
-      console.log("❌ ID is invalid:", id);
-      console.log("=== DELETE DEBUG END ===");
       setToast({
         message: "Invalid policy ID",
         type: "error",
@@ -750,12 +773,11 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
         const response = await axios.delete(
           `${gapi}/PT?user_id=${userData?.user?.user_id}&PT_id=${id}&permanent=${permanent}`
         );
-        console.log(response);
 
         let updatedPolicies;
         if (recycleBin) {
           setDeleted(deleted.filter((p) => p.PT_id !== id));
-          updatedPolicies = policies; // Policies remain unchanged for summary counts
+          updatedPolicies = policies;
         } else {
           const policyToDelete = policies.find((p) => p.PT_id === id);
 
@@ -798,30 +820,33 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
     }));
   };
 
-  const getPriorityClass = (priority) => {
-    if (!priority) return "policy-priority-medium";
+  const getPriorityBadgeClass = (priority) => {
+    if (!priority) return "priority-badge priority-badge-medium";
     const priorityLower = priority.toLowerCase();
-    if (priorityLower === "high") return "policy-priority-high";
-    if (priorityLower === "medium") return "policy-priority-medium";
-    if (priorityLower === "low") return "policy-priority-low";
-    return "policy-priority-medium";
+    if (priorityLower === "high") return "priority-badge priority-badge-high";
+    if (priorityLower === "medium")
+      return "priority-badge priority-badge-medium";
+    if (priorityLower === "low") return "priority-badge priority-badge-low";
+    return "priority-badge priority-badge-medium";
   };
 
   // Enhanced status class with different colors for each status
-  const getStatusClass = (status) => {
-    if (!status) return "policy-status-drafted";
+  const getStatusBadgeClass = (status) => {
+    if (!status) return "status-badge status-badge-drafted";
     const statusLower = status.toLowerCase();
 
-    if (statusLower === "completed") return "policy-status-completed";
+    if (statusLower === "completed")
+      return "status-badge status-badge-completed";
     if (statusLower === "under implementation")
-      return "policy-status-implementation";
-    if (statusLower === "approved") return "policy-status-approved";
-    if (statusLower === "drafted") return "policy-status-drafted";
-    if (statusLower === "pending") return "policy-status-pending";
-    if (statusLower === "important") return "policy-status-important";
-    if (statusLower === "critical") return "policy-status-critical";
+      return "status-badge status-badge-implementation";
+    if (statusLower === "approved") return "status-badge status-badge-approved";
+    if (statusLower === "drafted") return "status-badge status-badge-drafted";
+    if (statusLower === "pending") return "status-badge status-badge-pending";
+    if (statusLower === "important")
+      return "status-badge status-badge-important";
+    if (statusLower === "critical") return "status-badge status-badge-critical";
 
-    return "policy-status-drafted";
+    return "status-badge status-badge-drafted";
   };
 
   const clearFilter = () => {
@@ -884,35 +909,12 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
 
         {/* Show active filter badge */}
         {filter && (
-          <div
-            style={{
-              marginBottom: "15px",
-              padding: "8px 12px",
-              backgroundColor: "#e3f2fd",
-              border: "1px solid #2196f3",
-              borderRadius: "4px",
-              color: "#1976d2",
-              fontSize: "14px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
+          <div className="active-filter-badge">
             <span>
               🔍 Filtering by: <strong>{filter}</strong>
               {filterToPage && filterToPage === filter && " (from dashboard)"}
             </span>
-            <button
-              onClick={() => setFilter("")}
-              style={{
-                background: "none",
-                border: "none",
-                color: "#1976d2",
-                cursor: "pointer",
-                textDecoration: "underline",
-                fontSize: "12px",
-              }}
-            >
+            <button onClick={() => setFilter("")} className="clear-filter-btn">
               Clear Filter
             </button>
           </div>
@@ -958,122 +960,244 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
 
         {showForm && !recycleBin && (
           <div className="policy-form-wrap">
-            <div className="policy-form-row">
-              <input
-                type="number"
-                className="policy-input policy-input-small"
-                placeholder="Sl No"
-                value={formData.sl}
-                onChange={(e) =>
-                  handleInputChange("sl", parseInt(e.target.value) || "")
-                }
-              />
-              <input
-                type="text"
-                className="policy-input policy-input-flex"
-                placeholder="Policy Name"
-                value={formData.policy}
-                onChange={(e) => handleInputChange("policy", e.target.value)}
-              />
-              <input
-                type="text"
-                className="policy-input policy-input-flex"
-                placeholder="Department in Charge"
-                value={formData.department}
-                onChange={(e) =>
-                  handleInputChange("department", e.target.value)
-                }
-              />
+            <div className="form-header">
+              <h3 className="form-title">
+                {editingPolicy ? "Edit Policy" : "Add New Policy"}
+              </h3>
             </div>
 
-            <div className="policy-form-row">
-              <input
-                type="text"
-                className="policy-input policy-input-flex"
-                placeholder="Nodal Officer"
-                value={formData.officer}
-                onChange={(e) => handleInputChange("officer", e.target.value)}
-              />
-              <select
-                className="policy-select policy-input-flex"
-                value={formData.priority}
-                onChange={(e) => handleInputChange("priority", e.target.value)}
-              >
-                <option value="High">High</option>
-                <option value="Medium">Medium</option>
-                <option value="Low">Low</option>
-              </select>
-              <select
-                className="policy-select policy-input-flex"
-                value={formData.status}
-                onChange={(e) => handleInputChange("status", e.target.value)}
-              >
-                <option value="Drafted">Drafted</option>
-                <option value="Approved">Approved</option>
-                <option value="Under Implementation">
-                  Under Implementation
-                </option>
-                <option value="Important">Important</option>
-                <option value="Pending">Pending</option>
-                <option value="Critical">Critical</option>
-                <option value="Completed">Completed</option>
-              </select>
+            <div className="form-section">
+              <h4 className="form-section-title">Basic Information</h4>
+              <div className="policy-form-row">
+                <div className="form-group">
+                  <label htmlFor="sl-no" className="form-label">
+                    Sl No <span className="required">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    id="sl-no"
+                    className="policy-input"
+                    placeholder="Sl No"
+                    value={formData.sl}
+                    onChange={(e) =>
+                      handleInputChange("sl", parseInt(e.target.value) || "")
+                    }
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="policy-name" className="form-label">
+                    Policy Name <span className="required">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    id="policy-name"
+                    className="policy-input"
+                    placeholder="Policy Name"
+                    value={formData.policy}
+                    onChange={(e) =>
+                      handleInputChange("policy", e.target.value)
+                    }
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="department" className="form-label">
+                    Department in Charge <span className="required">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    id="department"
+                    className="policy-input"
+                    placeholder="Department in Charge"
+                    value={formData.department}
+                    onChange={(e) =>
+                      handleInputChange("department", e.target.value)
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="policy-form-row">
+                <div className="form-group">
+                  <label htmlFor="officer" className="form-label">
+                    Nodal Officer <span className="required">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    id="officer"
+                    className="policy-input"
+                    placeholder="Nodal Officer"
+                    value={formData.officer}
+                    onChange={(e) =>
+                      handleInputChange("officer", e.target.value)
+                    }
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="priority" className="form-label">
+                    Priority <span className="required">*</span>
+                  </label>
+                  <select
+                    id="priority"
+                    className="policy-select"
+                    value={formData.priority}
+                    onChange={(e) =>
+                      handleInputChange("priority", e.target.value)
+                    }
+                  >
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="status" className="form-label">
+                    Current Status <span className="required">*</span>
+                  </label>
+                  <select
+                    id="status"
+                    className="policy-select"
+                    value={formData.status}
+                    onChange={(e) =>
+                      handleInputChange("status", e.target.value)
+                    }
+                  >
+                    <option value="Drafted">Drafted</option>
+                    <option value="Approved">Approved</option>
+                    <option value="Under Implementation">
+                      Under Implementation
+                    </option>
+                    <option value="Important">Important</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Critical">Critical</option>
+                    <option value="Completed">Completed</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
-            <div className="policy-form-row">
-              <input
-                type="date"
-                className="policy-input policy-input-flex"
-                placeholder="Tentative Deadline"
-                value={formData.deadline}
-                onChange={(e) => handleInputChange("deadline", e.target.value)}
-              />
-              <input
-                type="date"
-                className="policy-input policy-input-flex"
-                placeholder="Last Review Date"
-                value={formData.review}
-                onChange={(e) => handleInputChange("review", e.target.value)}
-              />
-              <select
-                className="policy-select policy-input-flex"
-                value={formData.assigned_to}
-                onChange={(e) =>
-                  handleInputChange("assigned_to", e.target.value)
-                }
-              >
-                <option value="">Select Assignee</option>
-                {allUsers.map((user) => (
-                  <option key={user.cs_user_id} value={user.cs_user_id}>
-                    {user.cs_user_name}
-                  </option>
-                ))}
-              </select>
+            <div className="form-section">
+              <h4 className="form-section-title">Dates</h4>
+              <div className="policy-form-row">
+                <div className="form-group">
+                  <label htmlFor="deadline" className="form-label">
+                    Tentative Deadline <span className="required">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    id="deadline"
+                    className="policy-input"
+                    placeholder="Tentative Deadline"
+                    value={formData.deadline}
+                    onChange={(e) =>
+                      handleInputChange("deadline", e.target.value)
+                    }
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="review" className="form-label">
+                    Last Review Date <span className="required">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    id="review"
+                    className="policy-input"
+                    placeholder="Last Review Date"
+                    value={formData.review}
+                    onChange={(e) =>
+                      handleInputChange("review", e.target.value)
+                    }
+                  />
+                </div>
+              </div>
             </div>
 
-            <div className="policy-form-row">
-              <input
-                type="text"
-                className="policy-input"
-                placeholder="Next Action / Nudge"
-                value={formData.nudge}
-                onChange={(e) => handleInputChange("nudge", e.target.value)}
-              />
+            <div className="form-section">
+              <h4 className="form-section-title">Assignment</h4>
+              <div className="policy-form-row-full">
+                <div className="user-selection-container">
+                  <label className="form-label">
+                    Assigned To: <span className="required">*</span>
+                  </label>
+                  <div className="user-selection-grid">
+                    {allUsers.map((user) => (
+                      <div
+                        key={user.cs_user_id}
+                        className={`user-option ${
+                          formData.assigned_to?.includes(user.cs_user_id)
+                            ? "selected"
+                            : ""
+                        }`}
+                        onClick={() => handleUserSelection(user.cs_user_id)}
+                      >
+                        <div className="user-checkbox">
+                          {formData.assigned_to?.includes(user.cs_user_id) && (
+                            <div className="checkmark">✓</div>
+                          )}
+                        </div>
+                        <span className="user-name">{user.cs_user_name}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {formData.assigned_to && formData.assigned_to.length > 0 && (
+                    <div className="selected-users">
+                      <strong>Selected: </strong>
+                      {getAssignedToNames(formData.assigned_to).join(", ")}
+                    </div>
+                  )}
+                  {(!formData.assigned_to ||
+                    formData.assigned_to.length === 0) && (
+                    <div className="selection-warning">
+                      Please select at least one user
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
-            <div className="policy-form-row">
-              <textarea
-                className="policy-textarea"
-                rows="3"
-                placeholder="Activity Status / Remarks"
-                value={formData.remarks}
-                onChange={(e) => handleInputChange("remarks", e.target.value)}
-              />
+            <div className="form-section">
+              <h4 className="form-section-title">Details</h4>
+              <div className="policy-form-row">
+                <div className="form-group">
+                  <label htmlFor="nudge" className="form-label">
+                    Next Action / Nudge <span className="required">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    id="nudge"
+                    className="policy-input"
+                    placeholder="Next Action / Nudge"
+                    value={formData.nudge}
+                    onChange={(e) => handleInputChange("nudge", e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="policy-form-row">
+                <div className="form-group full-width">
+                  <label htmlFor="remarks" className="form-label">
+                    Activity Status / Remarks{" "}
+                    <span className="required">*</span>
+                  </label>
+                  <textarea
+                    id="remarks"
+                    className="policy-textarea"
+                    rows="4"
+                    placeholder="Activity Status / Remarks"
+                    value={formData.remarks}
+                    onChange={(e) =>
+                      handleInputChange("remarks", e.target.value)
+                    }
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="policy-form-actions">
-              <button className="policy-btn" onClick={handleSave}>
-                Save
+              <button
+                className="policy-btn policy-btn-primary"
+                onClick={handleSave}
+              >
+                {editingPolicy ? "Update Policy" : "Save Policy"}
               </button>
               <button
                 className="policy-btn policy-btn-ghost"
@@ -1087,27 +1211,162 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
 
         {!isMobile && (
           <div className="policy-table-container">
-            <table className="policy-table">
-              <thead>
-                <tr>
-                  <th>Sl No</th>
-                  <th>Policy Name</th>
-                  <th>Department in Charge</th>
-                  <th>Nodal Officer</th>
-                  <th>Priority</th>
-                  <th>Current Status</th>
-                  <th>Tentative Deadline</th>
-                  <th>Assigned To</th>
-                  <th>Nudge</th>
-                  <th>Remarks</th>
-                  <th>Actions</th>
-                  {!recycleBin && <th>History</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {recycleBin ? (
-                  filteredDeleted.length > 0 ? (
-                    filteredDeleted.map((policy) => (
+            <div className="table-scroll-wrapper">
+              <table className="policy-table">
+                <thead>
+                  <tr>
+                    <th className="col-sl">Sl No</th>
+                    <th className="col-policy">Policy Name</th>
+                    <th className="col-dept">Department</th>
+                    <th className="col-officer">Nodal Officer</th>
+                    <th className="col-priority">Priority</th>
+                    <th className="col-status">Status</th>
+                    <th className="col-deadline">Deadline</th>
+                    <th className="col-assigned">Assigned To</th>
+                    <th className="col-nudge">Nudge</th>
+                    <th className="col-remarks">Remarks</th>
+                    <th className="col-actions">Actions</th>
+                    {!recycleBin && <th className="col-history">History</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {recycleBin ? (
+                    filteredDeleted.length > 0 ? (
+                      filteredDeleted.map((policy) => (
+                        <React.Fragment key={policy.PT_id}>
+                          <tr
+                            className={`policy-table-row ${
+                              expandedRow === policy.PT_id
+                                ? "policy-row-expanded"
+                                : ""
+                            }`}
+                            onClick={() => handleRowClick(policy.PT_id)}
+                          >
+                            <td className="col-sl">{policy.sl}</td>
+                            <td className="col-policy">
+                              <div className="full-content-cell">
+                                {policy.policy}
+                              </div>
+                            </td>
+                            <td className="col-dept">
+                              <div className="full-content-cell">
+                                {policy.department}
+                              </div>
+                            </td>
+                            <td className="col-officer">
+                              <div className="full-content-cell">
+                                {policy.officer}
+                              </div>
+                            </td>
+                            <td className="col-priority">
+                              <div className="full-content-cell">
+                                <span
+                                  className={getPriorityBadgeClass(
+                                    policy.priority
+                                  )}
+                                >
+                                  {policy.priority}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="col-status">
+                              <div className="full-content-cell">
+                                <span
+                                  className={getStatusBadgeClass(policy.status)}
+                                >
+                                  {policy.status}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="col-deadline">
+                              <div className="full-content-cell">
+                                {formatDateForDisplay(policy.deadline)}
+                              </div>
+                            </td>
+                            <td className="col-assigned">
+                              <div className="assigned-users-container">
+                                {getAssignedUserBadges(policy.assigned_to) ||
+                                  "Unassigned"}
+                              </div>
+                            </td>
+                            <td className="col-nudge">
+                              <div className="full-content-cell">
+                                {policy.nudge || "-"}
+                              </div>
+                            </td>
+                            <td className="col-remarks">
+                              <div className="full-content-cell">
+                                {policy.remarks || "-"}
+                              </div>
+                            </td>
+                            <td className="col-actions">
+                              <div className="full-content-cell">
+                                {isUserPolicyOwner(policy) ? (
+                                  <button
+                                    className="iconcon"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDelete(policy.PT_id);
+                                    }}
+                                  >
+                                    <Deleteic />
+                                  </button>
+                                ) : (
+                                  <span className="not-owner-text">
+                                    Not the owner
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                          {expandedRow === policy.PT_id && (
+                            <tr className="policy-details-row">
+                              <td colSpan="12">
+                                <div className="policy-details-content">
+                                  <div>
+                                    <strong>Assigned To:</strong>{" "}
+                                    {policy.assigned_to_name}
+                                  </div>
+                                  <div>
+                                    <strong>Assigned By:</strong>{" "}
+                                    {getUserNameById(policy.assigned_by)}
+                                  </div>
+                                  <div>
+                                    <strong>Tentative Date:</strong>{" "}
+                                    {formatDateForDisplay(policy.deadline) ||
+                                      "No review date"}
+                                  </div>
+                                  <div>
+                                    <strong>Full Remarks:</strong>{" "}
+                                    {policy.remarks || "No remarks"}
+                                  </div>
+                                  <div>
+                                    <strong>Detailed Next Actions:</strong>{" "}
+                                    {policy.nudge || "No next actions"}
+                                  </div>
+                                  <div>
+                                    <strong>Review Notes:</strong> Last reviewed
+                                    on{" "}
+                                    {formatDateForDisplay(policy.review) ||
+                                      "No review date"}
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="12" className="policy-no-data">
+                          {filter
+                            ? `No deleted policies match "${filter}"`
+                            : "No deleted policies found"}
+                        </td>
+                      </tr>
+                    )
+                  ) : filteredPolicies.length > 0 ? (
+                    filteredPolicies.map((policy) => (
                       <React.Fragment key={policy.PT_id}>
                         <tr
                           className={`policy-table-row ${
@@ -1117,44 +1376,116 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
                           }`}
                           onClick={() => handleRowClick(policy.PT_id)}
                         >
-                          <td>{policy.sl}</td>
-                          <td>{policy.policy}</td>
-                          <td>{policy.department}</td>
-                          <td>{policy.officer}</td>
-                          <td className={getPriorityClass(policy.priority)}>
-                            {policy.priority}
+                          <td className="col-sl">{policy.sl}</td>
+                          <td className="col-policy">
+                            <div className="full-content-cell">
+                              {policy.policy}
+                            </div>
                           </td>
-                          <td className={getStatusClass(policy.status)}>
-                            {policy.status}
+                          <td className="col-dept">
+                            <div className="full-content-cell">
+                              {policy.department}
+                            </div>
                           </td>
-                          <td>{formatDateForDisplay(policy.deadline)}</td>
-                          <td>{policy.assigned_to_name}</td>
-                          <td>{policy.nudge || "-"}</td>
-                          <td className="policy-remarks-cell">
-                            {policy.remarks ? (
-                              <div className="policy-remarks-truncate">
-                                {policy.remarks}
+                          <td className="col-officer">
+                            <div className="full-content-cell">
+                              {policy.officer}
+                            </div>
+                          </td>
+                          <td className="col-priority">
+                            <div className="full-content-cell">
+                              <span
+                                className={getPriorityBadgeClass(
+                                  policy.priority
+                                )}
+                              >
+                                {policy.priority}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="col-status">
+                            <div className="full-content-cell">
+                              <span
+                                className={getStatusBadgeClass(policy.status)}
+                              >
+                                {policy.status}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="col-deadline">
+                            <div className="full-content-cell">
+                              {formatDateForDisplay(policy.deadline)}
+                            </div>
+                          </td>
+                          <td className="col-assigned">
+                            <div className="assigned-users-container">
+                              {getAssignedUserBadges(policy.assigned_to) ||
+                                "Unassigned"}
+                            </div>
+                          </td>
+                          <td className="col-nudge">
+                            <div className="full-content-cell">
+                              {policy.nudge || "-"}
+                            </div>
+                          </td>
+                          <td className="col-remarks">
+                            <div className="full-content-cell">
+                              {policy.remarks || "-"}
+                            </div>
+                          </td>
+                          {canUserEditPolicy(policy) ? (
+                            <td className="col-actions">
+                              <div className="full-content-cell">
+                                <button
+                                  className="iconcon"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEdit(policy);
+                                  }}
+                                >
+                                  <Editic />
+                                </button>
+                                <button
+                                  className="iconcon"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDelete(policy.PT_id);
+                                  }}
+                                >
+                                  <Deleteic />
+                                </button>
                               </div>
-                            ) : (
-                              "-"
-                            )}
-                          </td>
-                          <td className="policy-table-button">
-                            {isUserPolicyOwner(policy) ? (
+                            </td>
+                          ) : (
+                            <td className="col-actions">
+                              <div className="full-content-cell">
+                                <span className="not-authorized-text">
+                                  Not authorized
+                                </span>
+                              </div>
+                            </td>
+                          )}
+                          <td className="col-history">
+                            <div className="full-content-cell">
                               <button
-                                className="iconcon"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleDelete(policy.PT_id);
+                                  toggleHistory(policy.PT_id, e);
                                 }}
+                                className="policy-btn policy-btn-small"
                               >
-                                <Deleteic />
+                                click
                               </button>
-                            ) : (
-                              "Not the owner"
-                            )}
+                              {openHistoryId === policy.PT_id && (
+                                <History
+                                  record_id={policy.PT_id}
+                                  setHistoryOpen={setOpenHistoryId}
+                                />
+                              )}
+                            </div>
                           </td>
                         </tr>
+
                         {expandedRow === policy.PT_id && (
                           <tr className="policy-details-row">
                             <td colSpan="12">
@@ -1168,7 +1499,7 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
                                   {getUserNameById(policy.assigned_by)}
                                 </div>
                                 <div>
-                                  <strong>Tenative Date:</strong>{" "}
+                                  <strong>Tentative Date:</strong>{" "}
                                   {formatDateForDisplay(policy.deadline) ||
                                     "No review date"}
                                 </div>
@@ -1196,135 +1527,14 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
                     <tr>
                       <td colSpan="12" className="policy-no-data">
                         {filter
-                          ? `No deleted policies match "${filter}"`
-                          : "No deleted policies found"}
+                          ? `No policies match "${filter}"`
+                          : "No policies added yet"}
                       </td>
                     </tr>
-                  )
-                ) : filteredPolicies.length > 0 ? (
-                  filteredPolicies.map((policy) => (
-                    <React.Fragment key={policy.PT_id}>
-                      <tr
-                        className={`policy-table-row ${
-                          expandedRow === policy.PT_id
-                            ? "policy-row-expanded"
-                            : ""
-                        }`}
-                        onClick={() => handleRowClick(policy.PT_id)}
-                      >
-                        <td>{policy.sl}</td>
-                        <td>{policy.policy}</td>
-                        <td>{policy.department}</td>
-                        <td>{policy.officer}</td>
-                        <td className={getPriorityClass(policy.priority)}>
-                          {policy.priority}
-                        </td>
-                        <td className={getStatusClass(policy.status)}>
-                          {policy.status}
-                        </td>
-                        <td>{formatDateForDisplay(policy.deadline)}</td>
-                        <td>{policy.assigned_to_name}</td>
-                        <td>{policy.nudge || "-"}</td>
-                        <td className="policy-remarks-cell">
-                          {policy.remarks ? (
-                            <div className="policy-remarks-truncate">
-                              {policy.remarks}
-                            </div>
-                          ) : (
-                            "-"
-                          )}
-                        </td>
-                        {canUserEditPolicy(policy) ? (
-                          <td className="policy-table-button">
-                            <button
-                              className="iconcon"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEdit(policy);
-                              }}
-                            >
-                              <Editic />
-                            </button>
-                            <button
-                              className="iconcon"
-                              onClick={(e) => {
-                                console.log("here working???????????????????/");
-                                e.stopPropagation();
-                                handleDelete(policy.PT_id);
-                              }}
-                            >
-                              <Deleteic />
-                            </button>
-                          </td>
-                        ) : (
-                          <td>Not the owner</td>
-                        )}
-                        <td>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation(); // Stop propagation here
-                              toggleHistory(policy.PT_id, e);
-                            }}
-                            className="policy-btn policy-btn-small"
-                          >
-                            click
-                          </button>
-                          {openHistoryId === policy.PT_id && (
-                            <History
-                              record_id={policy.PT_id}
-                              setHistoryOpen={setOpenHistoryId}
-                            />
-                          )}
-                        </td>
-                      </tr>
-
-                      {expandedRow === policy.PT_id && (
-                        <tr className="policy-details-row">
-                          <td colSpan="12">
-                            <div className="policy-details-content">
-                              <div>
-                                <strong>Assigned To:</strong>{" "}
-                                {policy.assigned_to_name}
-                              </div>
-                              <div>
-                                <strong>Assigned By:</strong>{" "}
-                                {getUserNameById(policy.assigned_by)}
-                              </div>
-                              <div>
-                                <strong>Tenative Date:</strong>{" "}
-                                {formatDateForDisplay(policy.deadline) ||
-                                  "No review date"}
-                              </div>
-                              <div>
-                                <strong>Full Remarks:</strong>{" "}
-                                {policy.remarks || "No remarks"}
-                              </div>
-                              <div>
-                                <strong>Detailed Next Actions:</strong>{" "}
-                                {policy.nudge || "No next actions"}
-                              </div>
-                              <div>
-                                <strong>Review Notes:</strong> Last reviewed on{" "}
-                                {formatDateForDisplay(policy.review) ||
-                                  "No review date"}
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="12" className="policy-no-data">
-                      {filter
-                        ? `No policies match "${filter}"`
-                        : "No policies added yet"}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -1343,11 +1553,7 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
                     <div className="policy-card-header">
                       <div className="policy-card-sl">{policy.sl}.</div>
                       <div className="policy-card-policy">{policy.policy}</div>
-                      <div
-                        className={`policy-card-priority ${getPriorityClass(
-                          policy.priority
-                        )}`}
-                      >
+                      <div className={getPriorityBadgeClass(policy.priority)}>
                         {policy.priority}
                       </div>
                     </div>
@@ -1367,11 +1573,7 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
                       </div>
                       <div className="policy-card-detail-item">
                         <span className="policy-card-label">Status:</span>
-                        <span
-                          className={`policy-card-value ${getStatusClass(
-                            policy.status
-                          )}`}
-                        >
+                        <span className={getStatusBadgeClass(policy.status)}>
                           {policy.status}
                         </span>
                       </div>
@@ -1383,14 +1585,21 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
                       </div>
                       <div className="policy-card-detail-item">
                         <span className="policy-card-label">Assigned To:</span>
-                        <span className="policy-card-value">
-                          {policy.assigned_to_name}
-                        </span>
+                        <div className="assigned-users-container-mobile">
+                          {getAssignedUserBadges(policy.assigned_to) ||
+                            "Unassigned"}
+                        </div>
                       </div>
                       <div className="policy-card-detail-item">
                         <span className="policy-card-label">Nudge:</span>
                         <span className="policy-card-value">
                           {policy.nudge || "-"}
+                        </span>
+                      </div>
+                      <div className="policy-card-detail-item">
+                        <span className="policy-card-label">Remarks:</span>
+                        <span className="policy-card-value">
+                          {policy.remarks || "-"}
                         </span>
                       </div>
                     </div>
@@ -1463,9 +1672,7 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
                           <Deleteic />
                         </button>
                       ) : (
-                        <span style={{ color: "#6b7280", fontSize: "12px" }}>
-                          Not the owner
-                        </span>
+                        <span className="not-owner-text">Not the owner</span>
                       )}
                     </div>
                   </div>
@@ -1489,11 +1696,7 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
                   <div className="policy-card-header">
                     <div className="policy-card-sl">{policy.sl}.</div>
                     <div className="policy-card-policy">{policy.policy}</div>
-                    <div
-                      className={`policy-card-priority ${getPriorityClass(
-                        policy.priority
-                      )}`}
-                    >
+                    <div className={getPriorityBadgeClass(policy.priority)}>
                       {policy.priority}
                     </div>
                   </div>
@@ -1513,11 +1716,7 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
                     </div>
                     <div className="policy-card-detail-item">
                       <span className="policy-card-label">Status:</span>
-                      <span
-                        className={`policy-card-value ${getStatusClass(
-                          policy.status
-                        )}`}
-                      >
+                      <span className={getStatusBadgeClass(policy.status)}>
                         {policy.status}
                       </span>
                     </div>
@@ -1529,14 +1728,21 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
                     </div>
                     <div className="policy-card-detail-item">
                       <span className="policy-card-label">Assigned To:</span>
-                      <span className="policy-card-value">
-                        {policy.assigned_to_name}
-                      </span>
+                      <div className="assigned-users-container-mobile">
+                        {getAssignedUserBadges(policy.assigned_to) ||
+                          "Unassigned"}
+                      </div>
                     </div>
                     <div className="policy-card-detail-item">
                       <span className="policy-card-label">Nudge:</span>
                       <span className="policy-card-value">
                         {policy.nudge || "-"}
+                      </span>
+                    </div>
+                    <div className="policy-card-detail-item">
+                      <span className="policy-card-label">Remarks:</span>
+                      <span className="policy-card-value">
+                        {policy.remarks || "-"}
                       </span>
                     </div>
                   </div>
@@ -1600,7 +1806,7 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
                   <div className="policy-card-actions">
                     <button
                       onClick={(e) => {
-                        e.stopPropagation(); // Stop propagation here
+                        e.stopPropagation();
                         toggleHistory(policy.PT_id, e);
                       }}
                       className="policy-btn policy-btn-small"
@@ -1646,8 +1852,8 @@ const PolicyTracker = ({ filterToPage, setSummaryInfo }) => {
                       </button>
                     ) : (
                       !recycleBin && (
-                        <span style={{ color: "#6b7280", fontSize: "12px" }}>
-                          Not the owner
+                        <span className="not-authorized-text">
+                          Not authorized
                         </span>
                       )
                     )}

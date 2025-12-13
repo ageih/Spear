@@ -41,12 +41,11 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
   }, [filterToPage]);
 
   // Date range filter function
-  // Date range filter function - FIXED
   const getDateRangeFilter = (filterText) => {
     if (!filterText) return null;
 
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Normalize to start of day
+    today.setHours(0, 0, 0, 0);
     const filterLower = filterText.toLowerCase().trim();
 
     if (filterLower.includes("due this week")) {
@@ -58,12 +57,6 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
       endOfWeek.setDate(startOfWeek.getDate() + 6);
       endOfWeek.setHours(23, 59, 59, 999);
 
-      console.log("📅 Week filter range:", {
-        start: startOfWeek,
-        end: endOfWeek,
-        filter: filterText,
-      });
-
       return { type: "week", start: startOfWeek, end: endOfWeek };
     }
 
@@ -73,12 +66,6 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
 
       const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
       endOfMonth.setHours(23, 59, 59, 999);
-
-      console.log("📅 Month filter range:", {
-        start: startOfMonth,
-        end: endOfMonth,
-        filter: filterText,
-      });
 
       return { type: "month", start: startOfMonth, end: endOfMonth };
     }
@@ -99,9 +86,7 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
 
     const users = [];
 
-    // Iterate through all keys in levelUsers object
     Object.keys(valueuser).forEach((key) => {
-      // Check if the value is an array (like level1, level2, etc.)
       if (Array.isArray(valueuser[key])) {
         users.push(...valueuser[key]);
       }
@@ -110,9 +95,30 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
     return users;
   }, [valueuser]);
 
+  // Get single user name by ID
   const getUserNameById = (userId) => {
+    if (!userId) return "Unassigned";
     const foundUser = allUsers.find((user) => user.cs_user_id === userId);
-    return foundUser ? foundUser.cs_user_name : userId || "Unassigned";
+    return foundUser ? foundUser.cs_user_name : userId;
+  };
+
+  // Helper function to get user names by IDs (array)
+  const getUserNamesByIds = (userIds) => {
+    if (!userIds || !Array.isArray(userIds)) {
+      return [];
+    }
+
+    return userIds.map((userId) => {
+      const foundUser = allUsers.find((user) => user.cs_user_id === userId);
+      return foundUser ? foundUser.cs_user_name : userId || "Unassigned";
+    });
+  };
+
+  // Helper function to get user names as string for display - FIXED
+  const getUserNamesString = (userIds) => {
+    if (!userIds || !Array.isArray(userIds)) return "Unassigned";
+    const names = getUserNamesByIds(userIds);
+    return names.length > 0 ? names.join(", ") : "Unassigned";
   };
 
   const [formData, setFormData] = useState({
@@ -126,7 +132,7 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
     department: "",
     status: "Under Review",
     activityNotes: "",
-    assigned_to: "",
+    assigned_to: [], // Changed to array
     assigned_by: "",
     user_id: "",
     assigned_id: "",
@@ -156,12 +162,9 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
   // Helper function to parse your date format
   const parseDate = (dateString) => {
     if (!dateString) return null;
-
-    // Handle "2025-11-03 00:00:00" format - extract just the date part
-    const datePart = dateString.split(" ")[0]; // Gets "2025-11-03"
+    const datePart = dateString.split(" ")[0];
     const date = new Date(datePart);
 
-    // Validate the date
     if (isNaN(date.getTime())) {
       console.error("Invalid date:", dateString);
       return null;
@@ -170,12 +173,10 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
     return date;
   };
 
-  // Format date for display - extracts date part from API format
+  // Format date for display
   const formatDateForDisplay = (apiDate) => {
     if (!apiDate || apiDate === "N/A") return "N/A";
     try {
-      // Extract just the date part from "2025-11-03 00:00:00" or "2025-11-03"
-      // return apiDate.split(" ")[0];
       return apiDate.split(/[ T]/)[0];
     } catch (error) {
       console.error("Error formatting date:", apiDate, error);
@@ -191,27 +192,49 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
       }
 
       const response = await axios.get(
-        `${gapi}/LCT?user_id=${userData.user.user_id}&&deleted=false`
+        `${gapi}/LCT?user_id=${userData.user.user_id}&&deleted=false&user_level=${userData.user.cs_user_level}`
       );
 
-      const casedata = response.data.response.map((item, index) => ({
-        id: item.id || item.LCT_id,
-        user_id: item.user_id,
-        LCT_id: item.LCT_id,
-        sno: index + 1,
-        court: item.court || "",
-        priority: item.priority || "Medium",
-        submissionDate: item.date_of_submission || "", // Keep full date string
-        hearingDate: item.date_of_hearing || "", // Keep full date string
-        description: item.description || "",
-        department: item.department || "",
-        status: item.status || "Under Review",
-        activityNotes: item.activity_notes || "",
-        assigned_to: item.assigned_to || "",
-        assigned_to_name: getUserNameById(item.assigned_to),
-        assigned_by: item.assigned_by || "",
-        assigned_id: item.assigned_id,
-      }));
+      const casedata = response.data.response.map((item, index) => {
+        // Parse assigned_to - handle both string and array formats from API
+        let assignedToArray = [];
+        if (item.assigned_to) {
+          if (Array.isArray(item.assigned_to)) {
+            assignedToArray = item.assigned_to;
+          } else if (typeof item.assigned_to === "string") {
+            // Try to parse JSON string, otherwise treat as single value
+            try {
+              const parsed = JSON.parse(item.assigned_to);
+              if (Array.isArray(parsed)) {
+                assignedToArray = parsed;
+              } else {
+                assignedToArray = [item.assigned_to];
+              }
+            } catch {
+              assignedToArray = [item.assigned_to];
+            }
+          }
+        }
+
+        return {
+          id: item.id || item.LCT_id,
+          user_id: item.user_id,
+          LCT_id: item.LCT_id,
+          sno: index + 1,
+          court: item.court || "",
+          priority: item.priority || "Medium",
+          submissionDate: item.date_of_submission || "",
+          hearingDate: item.date_of_hearing || "",
+          description: item.description || "",
+          department: item.department || "",
+          status: item.status || "Under Review",
+          activityNotes: item.activity_notes || "",
+          assigned_to: assignedToArray, // Now an array
+          assigned_to_names: getUserNamesByIds(assignedToArray), // Array of names
+          assigned_by: item.assigned_by || "",
+          assigned_id: item.assigned_id,
+        };
+      });
       setCases(casedata);
       return true;
     } catch (err) {
@@ -228,26 +251,47 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
 
       const ft = true;
       const response = await axios.get(
-        `${gapi}/LCT?deleted=true&user_id=${userData.user.user_id}&user_fetch=${ft}`
+        `${gapi}/LCT?deleted=true&user_id=${userData.user.user_id}&user_fetch=${ft}&user_level=${userData.user.cs_user_level}`
       );
 
-      const casedata = response.data.response.map((item, index) => ({
-        id: item.id || item.LCT_id,
-        user_id: item.user_id,
-        LCT_id: item.LCT_id,
-        sno: index + 1,
-        court: item.court || "",
-        priority: item.priority || "Medium",
-        submissionDate: item.date_of_submission || "", // Keep full date string
-        hearingDate: item.date_of_hearing || "", // Keep full date string
-        description: item.description || "",
-        department: item.department || "",
-        status: item.status || "Under Review",
-        activityNotes: item.activity_notes || "",
-        assigned_to: item.assigned_to || "",
-        assigned_to_name: getUserNameById(item.assigned_to),
-        assigned_by: item.assigned_by || "",
-      }));
+      const casedata = response.data.response.map((item, index) => {
+        // Parse assigned_to - handle both string and array formats
+        let assignedToArray = [];
+        if (item.assigned_to) {
+          if (Array.isArray(item.assigned_to)) {
+            assignedToArray = item.assigned_to;
+          } else if (typeof item.assigned_to === "string") {
+            try {
+              const parsed = JSON.parse(item.assigned_to);
+              if (Array.isArray(parsed)) {
+                assignedToArray = parsed;
+              } else {
+                assignedToArray = [item.assigned_to];
+              }
+            } catch {
+              assignedToArray = [item.assigned_to];
+            }
+          }
+        }
+
+        return {
+          id: item.id || item.LCT_id,
+          user_id: item.user_id,
+          LCT_id: item.LCT_id,
+          sno: index + 1,
+          court: item.court || "",
+          priority: item.priority || "Medium",
+          submissionDate: item.date_of_submission || "",
+          hearingDate: item.date_of_hearing || "",
+          description: item.description || "",
+          department: item.department || "",
+          status: item.status || "Under Review",
+          activityNotes: item.activity_notes || "",
+          assigned_to: assignedToArray,
+          assigned_to_names: getUserNamesByIds(assignedToArray),
+          assigned_by: item.assigned_by || "",
+        };
+      });
       setDeleted(casedata);
       return true;
     } catch (err) {
@@ -256,288 +300,12 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
     }
   };
 
-  // Update summary counts function
-  // const updateSummaryCounts = (updatedCases) => {
-  //   if (!setSummaryInfo) {
-  //     console.log("❌ setSummaryInfo not available");
-  //     return;
-  //   }
-
-  //   // Safety check - don't process empty arrays (initial state)
-  //   if (!updatedCases || updatedCases.length === 0) {
-  //     console.log("🔄 Skipping summary update - empty or invalid cases data");
-  //     return;
-  //   }
-
-  //   console.log("📊 Updating summary counts with", updatedCases.length, "cases");
-
-  //   const today = new Date();
-
-  //   // Calculate date ranges
-  //   const startOfWeek = new Date(today);
-  //   startOfWeek.setDate(today.getDate() - today.getDay());
-  //   startOfWeek.setHours(0, 0, 0, 0);
-
-  //   const endOfWeek = new Date(startOfWeek);
-  //   endOfWeek.setDate(startOfWeek.getDate() + 6);
-  //   endOfWeek.setHours(23, 59, 59, 999);
-
-  //   const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-  //   startOfMonth.setHours(0, 0, 0, 0);
-
-  //   const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-  //   endOfMonth.setHours(23, 59, 59, 999);
-
-  //   // Important count - Cases with "Important" status
-  //   const importantCount = updatedCases.filter(
-  //     (c) => !c.deleted && c.status && c.status.toLowerCase() === "important"
-  //   ).length;
-
-  //   // Critical count - Cases with "Critical" status
-  //   const criticalCount = updatedCases.filter(
-  //     (c) => !c.deleted && c.status && c.status.toLowerCase() === "critical"
-  //   ).length;
-
-  //   // Due This Week count - Cases with hearing date this week AND status is Pending
-  //   const dueThisWeekCount = updatedCases.filter((c) => {
-  //     if (c.deleted || !c.hearingDate || c.status !== "Pending") return false;
-
-  //     const hearingDate = parseDate(c.hearingDate);
-  //     if (!hearingDate) return false;
-
-  //     console.log("🔍 Due This Week Check:", {
-  //       case: c.court,
-  //       hearingDate: c.hearingDate,
-  //       parsedDate: hearingDate,
-  //       startOfWeek: startOfWeek,
-  //       endOfWeek: endOfWeek,
-  //       inRange: hearingDate >= startOfWeek && hearingDate <= endOfWeek,
-  //     });
-
-  //     return hearingDate >= startOfWeek && hearingDate <= endOfWeek;
-  //   }).length;
-
-  //   // Due This Month count - Cases with hearing date this month AND status is Pending
-  //   const dueThisMonthCount = updatedCases.filter((c) => {
-  //     if (c.deleted || !c.hearingDate || c.status !== "Pending") return false;
-
-  //     const hearingDate = parseDate(c.hearingDate);
-  //     if (!hearingDate) return false;
-
-  //     console.log("🔍 Due This Month Check:", {
-  //       case: c.court,
-  //       hearingDate: c.hearingDate,
-  //       parsedDate: hearingDate,
-  //       startOfMonth: startOfMonth,
-  //       endOfMonth: endOfMonth,
-  //       inRange: hearingDate >= startOfMonth && hearingDate <= endOfMonth,
-  //     });
-  //     return hearingDate >= startOfMonth && hearingDate <= endOfMonth;
-  //   }).length;
-
-  //   // Debug logging to see what's being counted
-  //   console.log("📊 Legal Summary counts debug:", {
-  //     important: importantCount,
-  //     critical: criticalCount,
-  //     dueThisWeek: dueThisWeekCount,
-  //     dueThisMonth: dueThisMonthCount,
-  //     totalCases: updatedCases.length,
-  //     pendingCases: updatedCases
-  //       .filter((c) => c.status === "Pending")
-  //       .map((c) => ({
-  //         case: c.court,
-  //         status: c.status,
-  //         hearingDate: c.hearingDate,
-  //       })),
-  //   });
-
-  //   setSummaryInfo((prev) => ({
-  //     ...prev,
-  //     legal: [
-  //       { label: "Important", value: importantCount },
-  //       { label: "Critical", value: criticalCount },
-  //       { label: "Due This Week", value: dueThisWeekCount },
-  //       { label: "Due this month", value: dueThisMonthCount },
-  //     ],
-  //   }));
-  // };
-
-  // Update summary counts function - WITH ENHANCED DEBUGGING
-  // const updateSummaryCounts = (updatedCases) => {
-  //   if (!setSummaryInfo) {
-  //     console.log("❌ setSummaryInfo not available");
-  //     return;
-  //   }
-
-  //   // Safety check - don't process empty arrays (initial state)
-  //   if (!updatedCases || updatedCases.length === 0) {
-  //     console.log("🔄 Skipping summary update - empty or invalid cases data");
-  //     return;
-  //   }
-
-  //   console.log(
-  //     "📊 Updating summary counts with",
-  //     updatedCases.length,
-  //     "cases"
-  //   );
-
-  //   const today = new Date();
-  //   today.setHours(0, 0, 0, 0);
-
-  //   // Calculate date ranges
-  //   const startOfWeek = new Date(today);
-  //   startOfWeek.setDate(today.getDate() - today.getDay());
-  //   startOfWeek.setHours(0, 0, 0, 0);
-
-  //   const endOfWeek = new Date(startOfWeek);
-  //   endOfWeek.setDate(startOfWeek.getDate() + 6);
-  //   endOfWeek.setHours(23, 59, 59, 999);
-
-  //   const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-  //   startOfMonth.setHours(0, 0, 0, 0);
-
-  //   const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-  //   endOfMonth.setHours(23, 59, 59, 999);
-
-  //   console.log("📅 Date ranges for calculation:", {
-  //     today: today,
-  //     startOfWeek: startOfWeek,
-  //     endOfWeek: endOfWeek,
-  //     startOfMonth: startOfMonth,
-  //     endOfMonth: endOfMonth,
-  //   });
-
-  //   // Important count - Cases with "Important" status
-  //   const importantCount = updatedCases.filter(
-  //     (c) => !c.deleted && c.status && c.status.toLowerCase() === "important"
-  //   ).length;
-
-  //   // Critical count - Cases with "Critical" status
-  //   const criticalCount = updatedCases.filter(
-  //     (c) => !c.deleted && c.status && c.status.toLowerCase() === "critical"
-  //   ).length;
-
-  //   // Due This Week count - Cases with hearing date this week AND status is Pending
-  //   const dueThisWeekCount = updatedCases.filter((c) => {
-  //     if (c.deleted || !c.hearingDate || c.status !== "Pending") {
-  //       if (c.status === "Pending" && c.hearingDate) {
-  //         console.log("❌ Due This Week - Failed basic checks:", {
-  //           case: c.court,
-  //           deleted: c.deleted,
-  //           hearingDate: c.hearingDate,
-  //           status: c.status,
-  //         });
-  //       }
-  //       return false;
-  //     }
-
-  //     const hearingDate = parseDate(c.hearingDate);
-  //     if (!hearingDate) {
-  //       console.log("❌ Due This Week - Invalid date:", {
-  //         case: c.court,
-  //         hearingDate: c.hearingDate,
-  //       });
-  //       return false;
-  //     }
-
-  //     const isInRange = hearingDate >= startOfWeek && hearingDate <= endOfWeek;
-
-  //     console.log("🔍 Due This Week Check:", {
-  //       case: c.court,
-  //       hearingDate: c.hearingDate,
-  //       parsedDate: hearingDate,
-  //       startOfWeek: startOfWeek,
-  //       endOfWeek: endOfWeek,
-  //       inRange: isInRange,
-  //     });
-
-  //     return isInRange;
-  //   }).length;
-
-  //   // Due This Month count - Cases with hearing date this month AND status is Pending
-  //   const dueThisMonthCount = updatedCases.filter((c) => {
-  //     if (c.deleted || !c.hearingDate || c.status !== "Pending") {
-  //       if (c.status === "Pending" && c.hearingDate) {
-  //         console.log("❌ Due This Month - Failed basic checks:", {
-  //           case: c.court,
-  //           deleted: c.deleted,
-  //           hearingDate: c.hearingDate,
-  //           status: c.status,
-  //         });
-  //       }
-  //       return false;
-  //     }
-
-  //     const hearingDate = parseDate(c.hearingDate);
-  //     if (!hearingDate) {
-  //       console.log("❌ Due This Month - Invalid date:", {
-  //         case: c.court,
-  //         hearingDate: c.hearingDate,
-  //       });
-  //       return false;
-  //     }
-
-  //     const isInRange =
-  //       hearingDate >= startOfMonth && hearingDate <= endOfMonth;
-
-  //     console.log("🔍 Due This Month Check:", {
-  //       case: c.court,
-  //       hearingDate: c.hearingDate,
-  //       parsedDate: hearingDate,
-  //       startOfMonth: startOfMonth,
-  //       endOfMonth: endOfMonth,
-  //       inRange: isInRange,
-  //     });
-
-  //     return isInRange;
-  //   }).length;
-
-  //   // Debug logging to see what's being counted
-  //   const pendingCases = updatedCases.filter(
-  //     (c) => c.status === "Pending" && c.hearingDate
-  //   );
-
-  //   console.log("📊 Legal Summary FULL DEBUG:", {
-  //     important: importantCount,
-  //     critical: criticalCount,
-  //     dueThisWeek: dueThisWeekCount,
-  //     dueThisMonth: dueThisMonthCount,
-  //     totalCases: updatedCases.length,
-  //     pendingCasesCount: pendingCases.length,
-  //     pendingCases: pendingCases.map((c) => ({
-  //       case: c.court,
-  //       status: c.status,
-  //       hearingDate: c.hearingDate,
-  //       parsedDate: parseDate(c.hearingDate),
-  //       isThisWeek:
-  //         parseDate(c.hearingDate) >= startOfWeek &&
-  //         parseDate(c.hearingDate) <= endOfWeek,
-  //       isThisMonth:
-  //         parseDate(c.hearingDate) >= startOfMonth &&
-  //         parseDate(c.hearingDate) <= endOfMonth,
-  //     })),
-  //   });
-
-  //   setSummaryInfo((prev) => ({
-  //     ...prev,
-  //     legal: [
-  //       { label: "Important", value: importantCount },
-  //       { label: "Critical", value: criticalCount },
-  //       { label: "Due This Week", value: dueThisWeekCount },
-  //       { label: "Due this month", value: dueThisMonthCount },
-  //     ],
-  //   }));
-  // };
-  // Update the status check to include more statuses
   const isDueStatus = (status) => {
     if (!status) return false;
     const statusLower = status.toLowerCase();
-
-    // Include all statuses that should be considered "due" for legal cases
     return statusLower === "pending";
   };
 
-  // Update summary counts function - FIXED STATUS CHECK
   const updateSummaryCounts = (updatedCases) => {
     if (!setSummaryInfo) {
       console.log("❌ setSummaryInfo not available");
@@ -558,7 +326,6 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Calculate date ranges
     const startOfWeek = new Date(today);
     startOfWeek.setDate(today.getDate() - today.getDay());
     startOfWeek.setHours(0, 0, 0, 0);
@@ -573,17 +340,14 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
     const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
     endOfMonth.setHours(23, 59, 59, 999);
 
-    // Important count - Cases with "Important" status
     const importantCount = updatedCases.filter(
       (c) => !c.deleted && c.status && c.status.toLowerCase() === "important"
     ).length;
 
-    // Critical count - Cases with "Critical" status
     const criticalCount = updatedCases.filter(
       (c) => !c.deleted && c.status && c.status.toLowerCase() === "critical"
     ).length;
 
-    // Due This Week count - Cases with hearing date this week AND status is due status
     const dueThisWeekCount = updatedCases.filter((c) => {
       if (c.deleted || !c.hearingDate || !isDueStatus(c.status)) {
         return false;
@@ -592,22 +356,9 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
       const hearingDate = parseDate(c.hearingDate);
       if (!hearingDate) return false;
 
-      const isInRange = hearingDate >= startOfWeek && hearingDate <= endOfWeek;
-
-      console.log("🔍 Due This Week Check:", {
-        case: c.court,
-        status: c.status,
-        hearingDate: c.hearingDate,
-        parsedDate: hearingDate,
-        startOfWeek: startOfWeek,
-        endOfWeek: endOfWeek,
-        inRange: isInRange,
-      });
-
-      return isInRange;
+      return hearingDate >= startOfWeek && hearingDate <= endOfWeek;
     }).length;
 
-    // Due This Month count - Cases with hearing date this month AND status is due status
     const dueThisMonthCount = updatedCases.filter((c) => {
       if (c.deleted || !c.hearingDate || !isDueStatus(c.status)) {
         return false;
@@ -616,47 +367,8 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
       const hearingDate = parseDate(c.hearingDate);
       if (!hearingDate) return false;
 
-      const isInRange =
-        hearingDate >= startOfMonth && hearingDate <= endOfMonth;
-
-      console.log("🔍 Due This Month Check:", {
-        case: c.court,
-        status: c.status,
-        hearingDate: c.hearingDate,
-        parsedDate: hearingDate,
-        startOfMonth: startOfMonth,
-        endOfMonth: endOfMonth,
-        inRange: isInRange,
-      });
-
-      return isInRange;
+      return hearingDate >= startOfMonth && hearingDate <= endOfMonth;
     }).length;
-
-    // Debug logging
-    const dueCases = updatedCases.filter(
-      (c) => isDueStatus(c.status) && c.hearingDate
-    );
-
-    console.log("📊 Legal Summary FULL DEBUG:", {
-      important: importantCount,
-      critical: criticalCount,
-      dueThisWeek: dueThisWeekCount,
-      dueThisMonth: dueThisMonthCount,
-      totalCases: updatedCases.length,
-      dueCasesCount: dueCases.length,
-      dueCases: dueCases.map((c) => ({
-        case: c.court,
-        status: c.status,
-        hearingDate: c.hearingDate,
-        parsedDate: parseDate(c.hearingDate),
-        isThisWeek:
-          parseDate(c.hearingDate) >= startOfWeek &&
-          parseDate(c.hearingDate) <= endOfWeek,
-        isThisMonth:
-          parseDate(c.hearingDate) >= startOfMonth &&
-          parseDate(c.hearingDate) <= endOfMonth,
-      })),
-    });
 
     setSummaryInfo((prev) => ({
       ...prev,
@@ -691,36 +403,8 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
     }
   }, [userData, userLoading, allUsers]);
 
-  // Debug effect to check date parsing
-  useEffect(() => {
-    if (cases.length > 0) {
-      console.log("🔍 Date format debug - First case:", {
-        hearingDate: cases[0].hearingDate,
-        parsedHearingDate: parseDate(cases[0].hearingDate),
-        submissionDate: cases[0].submissionDate,
-        parsedSubmissionDate: parseDate(cases[0].submissionDate),
-      });
-
-      // Check all pending cases with hearing dates
-      const pendingCasesWithHearingDates = cases.filter(
-        (c) => c.status === "Pending" && c.hearingDate
-      );
-
-      console.log(
-        "🔍 Pending cases with hearing dates:",
-        pendingCasesWithHearingDates.map((c) => ({
-          court: c.court,
-          status: c.status,
-          hearingDate: c.hearingDate,
-          parsed: parseDate(c.hearingDate),
-        }))
-      );
-    }
-  }, [cases]);
-
   // ✅ Update summary counts whenever cases change
   useEffect(() => {
-    // Only update if we have actual cases data (not initial empty state)
     if (cases.length > 0) {
       console.log("🔄 Cases data updated, updating summary counts...");
       updateSummaryCounts(cases);
@@ -733,52 +417,20 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
       setFormData((prev) => ({
         ...prev,
         assigned_id: editingCase.assigned_id,
-        assigned_to: editingCase.assigned_to,
-        assigned_to_name: getUserNameById(editingCase.assigned_to),
+        assigned_to: editingCase.assigned_to || [], // Ensure it's an array
       }));
     }
   }, [editingCase, allUsers]);
 
   // Filtered data based on current filter
-  // const filteredCases = cases.filter((legalCase) => {
-  //   if (!filter || filter.trim() === "") return true;
-
-  //   const dateRangeFilter = getDateRangeFilter(filter);
-
-  //   // Handle special date filters
-  //   if (dateRangeFilter) {
-  //     const hearingDate = parseDate(legalCase.hearingDate);
-  //     const isPending = legalCase.status === "Pending";
-
-  //     if (!isPending) return false;
-  //     if (!hearingDate) return false;
-
-  //     return (
-  //       hearingDate >= dateRangeFilter.start &&
-  //       hearingDate <= dateRangeFilter.end
-  //     );
-  //   }
-
-  //   // Regular text search
-  //   const lowerFilter = filter.toLowerCase();
-  //   return (
-  //     legalCase.court.toLowerCase().includes(lowerFilter) ||
-  //     legalCase.department.toLowerCase().includes(lowerFilter) ||
-  //     legalCase.status.toLowerCase().includes(lowerFilter) ||
-  //     legalCase.description.toLowerCase().includes(lowerFilter) ||
-  //     legalCase.assigned_to_name.toLowerCase().includes(lowerFilter)
-  //   );
-  // });
-  // Filtered data based on current filter - UPDATED
   const filteredCases = cases.filter((legalCase) => {
     if (!filter || filter.trim() === "") return true;
 
     const dateRangeFilter = getDateRangeFilter(filter);
 
-    // Handle special date filters
     if (dateRangeFilter) {
       const hearingDate = parseDate(legalCase.hearingDate);
-      const isDue = isDueStatus(legalCase.status); // Use the same due status logic
+      const isDue = isDueStatus(legalCase.status);
 
       if (!isDue) return false;
       if (!hearingDate) return false;
@@ -789,14 +441,15 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
       );
     }
 
-    // Regular text search
     const lowerFilter = filter.toLowerCase();
     return (
       legalCase.court.toLowerCase().includes(lowerFilter) ||
       legalCase.department.toLowerCase().includes(lowerFilter) ||
       legalCase.status.toLowerCase().includes(lowerFilter) ||
       legalCase.description.toLowerCase().includes(lowerFilter) ||
-      legalCase.assigned_to_name.toLowerCase().includes(lowerFilter)
+      getUserNamesString(legalCase.assigned_to)
+        .toLowerCase()
+        .includes(lowerFilter)
     );
   });
 
@@ -807,7 +460,9 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
       legalCase.department.toLowerCase().includes(lowerFilter) ||
       legalCase.status.toLowerCase().includes(lowerFilter) ||
       legalCase.description.toLowerCase().includes(lowerFilter) ||
-      legalCase.assigned_to_name.toLowerCase().includes(lowerFilter)
+      getUserNamesString(legalCase.assigned_to)
+        .toLowerCase()
+        .includes(lowerFilter)
     );
   });
 
@@ -817,14 +472,14 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
 
     return (
       userData.user.user_id === legalCase.user_id ||
-      userData.user.user_id === legalCase.assigned_to
+      (Array.isArray(legalCase.assigned_to) &&
+        legalCase.assigned_to.includes(userData.user.user_id))
     );
   };
 
-  // Check if current user is the owner of the case (for permanent delete)
+  // Check if current user is the owner of the case
   const isUserCaseOwner = (legalCase) => {
     if (!userData?.user?.user_id) return false;
-
     return userData.user.user_id === legalCase.user_id;
   };
 
@@ -844,7 +499,7 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
       department: "",
       status: "Under Review",
       activityNotes: "",
-      assigned_to: "",
+      assigned_to: [], // Empty array
       assigned_by: userData?.user?.user_id || "",
       assigned_id: "",
       user_id: userData?.user?.user_id || "",
@@ -853,7 +508,6 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
 
   const handleCancel = (e) => {
     e.stopPropagation();
-
     setShowForm(false);
     setEditingCase(null);
     setEditing(false);
@@ -862,8 +516,8 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
   const handleSave = async (e) => {
     e.stopPropagation();
 
-    if (!formData.assigned_to) {
-      alert("Please assign to a user");
+    if (!formData.assigned_to || formData.assigned_to.length === 0) {
+      alert("Please assign to at least one user");
       return;
     }
 
@@ -876,7 +530,7 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
         department: formData.department,
         status: formData.status || "Under Review",
         activity_notes: formData.activityNotes,
-        assigned_to: formData.assigned_to,
+        assigned_to: formData.assigned_to, // Send as array
         assigned_by: formData.assigned_by,
         user_id: userData?.user?.user_id,
         assigned_id: formData?.assigned_id,
@@ -922,8 +576,8 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
         department: formData.department,
         status: formData.status || "Under Review",
         activityNotes: formData.activityNotes,
-        assigned_to: formData.assigned_to,
-        assigned_to_name: getUserNameById(formData.assigned_to),
+        assigned_to: formData.assigned_to, // Array
+        assigned_to_names: getUserNamesByIds(formData.assigned_to), // Array of names
         assigned_by: formData.assigned_by,
         user_id: userData?.user?.user_id,
       };
@@ -966,7 +620,7 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
       department: legalCase.department,
       status: legalCase.status,
       activityNotes: legalCase.activityNotes,
-      assigned_to: legalCase.assigned_to,
+      assigned_to: legalCase.assigned_to || [], // Ensure array
       assigned_by: userData?.user?.user_id,
       user_id: userData?.user?.user_id,
     });
@@ -1030,6 +684,25 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
     }));
   };
 
+  // Handle user selection for assigned_to (checkbox style)
+  const handleUserSelect = (userId) => {
+    const currentAssigned = formData.assigned_to || [];
+
+    if (currentAssigned.includes(userId)) {
+      // Remove user if already selected
+      setFormData((prev) => ({
+        ...prev,
+        assigned_to: currentAssigned.filter((id) => id !== userId),
+      }));
+    } else {
+      // Add user if not selected
+      setFormData((prev) => ({
+        ...prev,
+        assigned_to: [...currentAssigned, userId],
+      }));
+    }
+  };
+
   const getPriorityClass = (priority) => {
     const priorityLower = priority.toLowerCase();
     if (priorityLower === "high") return "legal-policy-priority-high";
@@ -1046,7 +719,23 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
     if (statusLower.includes("completed"))
       return "legal-policy-status-completed";
     if (statusLower.includes("pending")) return "legal-policy-status-pending";
+    if (statusLower.includes("important"))
+      return "legal-policy-status-important";
+    if (statusLower.includes("critical")) return "legal-policy-status-critical";
+    if (statusLower.includes("awaiting")) return "legal-policy-status-awaiting";
     return "legal-policy-status-default";
+  };
+
+  const getStatusColorClass = (status) => {
+    const statusLower = status.toLowerCase();
+    if (statusLower.includes("review")) return "status-border-review";
+    if (statusLower.includes("scheduled")) return "status-border-scheduled";
+    if (statusLower.includes("completed")) return "status-border-completed";
+    if (statusLower.includes("pending")) return "status-border-pending";
+    if (statusLower.includes("important")) return "status-border-important";
+    if (statusLower.includes("critical")) return "status-border-critical";
+    if (statusLower.includes("awaiting")) return "status-border-awaiting";
+    return "status-border-default";
   };
 
   const clearFilter = () => {
@@ -1091,7 +780,13 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
         </div>
         <div className="legal-mobile-field">
           <label>Assigned To:</label>
-          <span>{legalCase.assigned_to_name}</span>
+          <div className="assigned-users-tags">
+            {legalCase.assigned_to_names?.map((name, index) => (
+              <span key={index} className="assigned-user-tag">
+                {name}
+              </span>
+            ))}
+          </div>
         </div>
         <div className="legal-mobile-field">
           <label>Submission Date:</label>
@@ -1329,10 +1024,7 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
                   onChange={(e) => handleInputChange("court", e.target.value)}
                 />
               </div>
-              {/* </div> */}
 
-              {/* Row 2: Date Fields */}
-              {/* <div className="legal-policy-form-row"> */}
               <div className="form-field-group">
                 <label className="form-label">Submission Date</label>
                 <input
@@ -1358,7 +1050,7 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
               </div>
             </div>
 
-            {/* Row 3: Department, Status, Assignee */}
+            {/* Row 2: Department, Priority, Status */}
             <div className="legal-policy-form-row">
               <div className="form-field-group">
                 <label className="form-label">Department</label>
@@ -1406,23 +1098,57 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
                   <option value="Critical">Critical</option>
                 </select>
               </div>
+            </div>
 
-              <div className="form-field-group">
-                <label className="form-label">Assign To</label>
-                <select
-                  className="legal-policy-input"
-                  value={formData.assigned_to}
-                  onChange={(e) =>
-                    handleInputChange("assigned_to", e.target.value)
-                  }
-                >
-                  <option value="">Select Assignee</option>
-                  {allUsers.map((user) => (
-                    <option key={user.cs_user_id} value={user.cs_user_id}>
-                      {user.cs_user_name}
-                    </option>
-                  ))}
-                </select>
+            {/* Row 3: Assign To - Full Width */}
+            <div className="legal-policy-form-row full-width-row">
+              <div className="form-field-group form-field-full">
+                <label className="form-label">
+                  Assign To: <span className="required">*</span>
+                </label>
+                <div className="user-selection-container">
+                  <div className="user-selection-grid">
+                    {allUsers
+                      .filter((user) => {
+                        // Filter out current user
+                        if (
+                          userData?.user?.user_id &&
+                          user.cs_user_id === userData.user.user_id
+                        ) {
+                          return false;
+                        }
+                        return true;
+                      })
+                      .map((user) => (
+                        <div
+                          key={user.cs_user_id}
+                          className={`user-option ${
+                            formData.assigned_to?.includes(user.cs_user_id)
+                              ? "selected"
+                              : ""
+                          }`}
+                          onClick={() => handleUserSelect(user.cs_user_id)}
+                        >
+                          <div className="user-checkbox">
+                            {formData.assigned_to?.includes(
+                              user.cs_user_id
+                            ) && <div className="checkmark">✓</div>}
+                          </div>
+                          <span className="user-name">{user.cs_user_name}</span>
+                        </div>
+                      ))}
+                  </div>
+                  {formData.assigned_to && formData.assigned_to.length > 0 ? (
+                    <div className="selected-users">
+                      <strong>Selected: </strong>
+                      {getUserNamesString(formData.assigned_to)}
+                    </div>
+                  ) : (
+                    <div className="selection-warning">
+                      Please select at least one user
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1510,9 +1236,28 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
                           </td>
                           <td>{formatDateForDisplay(legalCase.hearingDate)}</td>
                           <td>{legalCase.department}</td>
-                          <td>{legalCase.assigned_to_name}</td>
-                          <td className={getStatusClass(legalCase.status)}>
-                            {legalCase.status}
+                          <td>
+                            <div className="assigned-users-tags">
+                              {legalCase.assigned_to_names?.map(
+                                (name, index) => (
+                                  <span
+                                    key={index}
+                                    className="assigned-user-tag"
+                                  >
+                                    {name}
+                                  </span>
+                                )
+                              )}
+                            </div>
+                          </td>
+                          <td>
+                            <span
+                              className={`status-badge ${getStatusColorClass(
+                                legalCase.status
+                              )}`}
+                            >
+                              {legalCase.status}
+                            </span>
                           </td>
                           <td className="legal-btncon">
                             {canUserEditCase(legalCase) ? (
@@ -1564,7 +1309,7 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
                               <div className="legal-policy-details-content">
                                 <div>
                                   <strong>Assigned To:</strong>{" "}
-                                  {legalCase.assigned_to_name}
+                                  {getUserNamesString(legalCase.assigned_to)}
                                 </div>
                                 <div>
                                   <strong>Assigned By:</strong>{" "}
@@ -1610,9 +1355,23 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
                         </td>
                         <td>{formatDateForDisplay(legalCase.hearingDate)}</td>
                         <td>{legalCase.department}</td>
-                        <td>{legalCase.assigned_to_name}</td>
-                        <td className={getStatusClass(legalCase.status)}>
-                          {legalCase.status}
+                        <td>
+                          <div className="assigned-users-tags">
+                            {legalCase.assigned_to_names?.map((name, index) => (
+                              <span key={index} className="assigned-user-tag">
+                                {name}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td>
+                          <span
+                            className={`status-badge ${getStatusColorClass(
+                              legalCase.status
+                            )}`}
+                          >
+                            {legalCase.status}
+                          </span>
                         </td>
                         <td className="legal-btncon">
                           {isUserCaseOwner(legalCase) ? (
@@ -1629,7 +1388,7 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
                             "Not the owner"
                           )}
                         </td>
-                        {/* <td>-</td> */}
+                        <td>-</td>
                       </tr>
                       {expandedRow === legalCase.id && (
                         <tr className="legal-policy-details-row">
@@ -1637,7 +1396,7 @@ const LegalExpansion = ({ filterToPage, setSummaryInfo }) => {
                             <div className="legal-policy-details-content">
                               <div>
                                 <strong>Assigned To:</strong>{" "}
-                                {legalCase.assigned_to_name}
+                                {getUserNamesString(legalCase.assigned_to)}
                               </div>
                               <div>
                                 <strong>Assigned By:</strong>{" "}

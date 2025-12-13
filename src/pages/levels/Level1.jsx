@@ -726,7 +726,7 @@ function Level1({ currentUser, userPermissions }) {
         {/* Detail View (Desktop only) */}
         {!isMobile && (
           <div className="detail-view">
-            <div className="detail-view-header">
+            {/* <div className="detail-view-header">
               <h3>
                 {activeDetail?.includes("tracker")
                   ? "Tracker View"
@@ -745,7 +745,7 @@ function Level1({ currentUser, userPermissions }) {
                   Close View
                 </button>
               )}
-            </div>
+            </div> */}
             <div className="detail-content">{renderDetail()}</div>
           </div>
         )}
